@@ -7,3 +7,13 @@ Changes and fixes
 Tests executed
 - Detector smoke tests (blank image, detect_best, to_dict, lazy load).
   Result: PASS (no model path errors after the update).
+
+Commit 4 - Copilot fixes and QA notes
+
+Changes and fixes
+- Pinned bcrypt to 4.0.1 to resolve passlib backend errors.
+- Pinned all dependency versions in requirements.txt for reproducible installs.
+
+Tests executed
+- JWT service tests (hash/verify, access/refresh tokens, tamper handling, token pair).
+  Result: PASS (tampered token decode logged and returned None as expected).

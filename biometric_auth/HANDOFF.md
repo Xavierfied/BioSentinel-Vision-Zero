@@ -63,3 +63,27 @@ FACE_CONFIDENCE_THRESHOLD = 0.75 comes from constants.py.
 Blank image returns empty list, detect_best returns None,
 to_dict() excludes face_crop numpy array, model lazy loads cleanly.
 
+### #4 feat(auth): implement JWT access and refresh token service
+**Hash:** [paste hash here]
+**What was built:**
+- app/auth/__init__.py (empty)
+- app/auth/jwt_service.py:
+  - hash_password / verify_password (bcrypt via passlib)
+  - create_access_token / create_refresh_token (python-jose)
+  - decode_token — returns None on failure, never raises
+  - create_token_pair — single call to get both tokens
+  - save_session — persists token pair to DB (no commit, get_db handles it)
+  - revoke_session — marks session is_revoked=True
+  - get_user_by_username — active user lookup by username
+
+**Why:**
+All auth flows (enroll, login, protected routes) need tokens.
+Keeping this as pure functions (no class) makes it easy to import
+one function at a time in routers and middleware.
+decode_token returns None instead of raising so middleware
+can handle invalid tokens gracefully without try/except everywhere.
+
+**Tested:**
+Hash/verify, encode/decode, token type field, tampered token → None,
+token pair tuple all confirmed passing.
+
