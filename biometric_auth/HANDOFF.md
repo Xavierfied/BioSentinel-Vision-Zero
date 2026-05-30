@@ -87,3 +87,25 @@ can handle invalid tokens gracefully without try/except everywhere.
 Hash/verify, encode/decode, token type field, tampered token → None,
 token pair tuple all confirmed passing.
 
+### #5 feat(cv): add RetinaFace step-up for low-confidence detections
+**Hash:** [paste hash here]
+**What was built:**
+- app/cv/stepup.py:
+  - StepUpDetector class with detect() and _retinaface_detect()
+  - detect() tries YOLO first, escalates to RetinaFace only on failure
+  - _retinaface_detect() parses RetinaFace dict output into FaceDetection
+  - Guards against RetinaFace returning int (not dict) when no face found
+  - step_up_detector module-level singleton
+
+**Why:**
+YOLO is fast but misses faces in bad lighting or at angles.
+RetinaFace is purpose-built for faces and more robust, but slower.
+The two-stage pattern keeps the happy path (good lighting) fast
+and only pays the RetinaFace cost when YOLO is uncertain.
+All downstream code (DeepFace in commit #6) imports step_up_detector,
+not face_detector directly — so the escalation is transparent.
+
+**Tested:**
+Blank image returns None through both stages, singleton type confirmed,
+no circular imports, RetinaFace int-return edge case handled.
+
