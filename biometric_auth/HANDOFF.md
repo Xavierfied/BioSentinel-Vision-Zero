@@ -41,4 +41,25 @@ scoped DB session that auto-commits on success and rolls back on error.
 All schemas instantiate correctly, get_db confirmed as async generator,
 Pydantic v2 validation works on UserCreate fields.
 
-**Next:** Commit #3 — YOLOv8 face detector with confidence threshold
+### #3 feat(cv): implement YOLOv8 face detector with confidence threshold
+**Hash:** [paste hash here]
+**What was built:**
+- app/cv/__init__.py (empty, marks cv as a package)
+- app/cv/detector.py:
+  - FaceDetection dataclass (bbox, confidence, face_crop)
+  - FaceDetector class with lazy model loading (singleton)
+  - detect() — returns all faces above FACE_CONFIDENCE_THRESHOLD
+  - detect_best() — returns highest confidence face or None
+  - module-level face_detector singleton instance
+
+**Why:**
+YOLOv8 is the first pass detector. It is fast but can miss faces
+at odd angles or low light. Low-confidence detections will be
+escalated to RetinaFace in commit #5 (step-up strategy).
+Lazy loading prevents the heavy YOLO model from blocking app startup.
+FACE_CONFIDENCE_THRESHOLD = 0.75 comes from constants.py.
+
+**Tested:**
+Blank image returns empty list, detect_best returns None,
+to_dict() excludes face_crop numpy array, model lazy loads cleanly.
+
