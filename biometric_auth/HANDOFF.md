@@ -25,6 +25,8 @@ SQLite + create_all() used intentionally — no Alembic needed for demo scope.
 **Tested:**
 create_tables() ran cleanly, .db file created, all three tables queryable.
 
+---
+
 ### #2 feat(db): add Pydantic schemas and async get_db dependency
 **Hash:** [paste hash here]
 **What was built:**
@@ -40,6 +42,8 @@ scoped DB session that auto-commits on success and rolls back on error.
 **Tested:**
 All schemas instantiate correctly, get_db confirmed as async generator,
 Pydantic v2 validation works on UserCreate fields.
+
+---
 
 ### #3 feat(cv): implement YOLOv8 face detector with confidence threshold
 **Hash:** [paste hash here]
@@ -62,6 +66,8 @@ FACE_CONFIDENCE_THRESHOLD = 0.75 comes from constants.py.
 **Tested:**
 Blank image returns empty list, detect_best returns None,
 to_dict() excludes face_crop numpy array, model lazy loads cleanly.
+
+---
 
 ### #4 feat(auth): implement JWT access and refresh token service
 **Hash:** [paste hash here]
@@ -87,6 +93,8 @@ can handle invalid tokens gracefully without try/except everywhere.
 Hash/verify, encode/decode, token type field, tampered token → None,
 token pair tuple all confirmed passing.
 
+---
+
 ### #5 feat(cv): add RetinaFace step-up for low-confidence detections
 **Hash:** [paste hash here]
 **What was built:**
@@ -109,6 +117,8 @@ not face_detector directly — so the escalation is transparent.
 Blank image returns None through both stages, singleton type confirmed,
 no circular imports, RetinaFace int-return edge case handled.
 
+---
+
 ### #6 feat(cv): integrate DeepFace embeddings, cosine similarity, anti-spoofing
 **Hash:** [paste hash here]
 **What was built:**
@@ -128,4 +138,30 @@ embedding_to_json/json_to_embedding handle the User.face_embedding DB field.
 **Tested:**
 Cosine similarity math verified (identical=1.0, orthogonal=0.0), zero vector
 guard, is_match threshold, JSON round-trip, graceful None on bad input and blank image.
+
+---
+
+### #7 feat(cv): implement MediaPipe liveness challenge (blink/turn)
+**Hash:** [paste hash here]
+**What was built:**
+- app/cv/liveness.py: ChallengeType enum, LivenessChallenge dataclass,
+  get_random_challenge(), _eye_aspect_ratio(), _detect_blink(),
+  _detect_head_turn(), verify_challenge_frame()
+- weights/face_landmarker.task: 3.76MB Tasks API model
+- requirements.txt: added mediapipe==0.10.35
+
+**Why:**
+Legacy mp.solutions.face_mesh API removed from mediapipe ≥0.10.22.
+Versions that have it (≤0.10.21) pin protobuf<5 which breaks TF 2.21
+and DeepFace (need protobuf ≥6.x). Irreconcilable conflict — verified
+empirically. Switched to Tasks API (FaceLandmarker). All liveness logic
+(EAR, blink threshold 0.20, head turn offsets 0.65/0.35, landmark
+indices) is identical — only the FaceMesh call site changed.
+MediaPipe used for landmarks ONLY, not identity (per project rules).
+
+**Tested:**
+16/16 smoke tests passed. Stack confirmed intact: TF 2.21, DeepFace,
+numpy 2.4.6, protobuf 7.35.0, opencv 4.13 all unaffected.
+
+---
 

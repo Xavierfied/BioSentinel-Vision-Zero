@@ -12,6 +12,7 @@ opencv-python==4.13.0.92
 ultralytics==8.4.57
 deepface==0.0.100
 retina-face==0.0.17
+mediapipe==0.10.35
 numpy==2.4.6
 Pillow==12.2.0
 httpx==0.28.1
