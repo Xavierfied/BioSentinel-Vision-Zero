@@ -87,3 +87,14 @@ Changes and fixes
 Tests executed
 - Risk middleware tests (pass-through paths, safe/step-up/lockout scores, exception safety).
   Result: PASS (intentional exception logged in test 7).
+
+---
+
+# Commit 12 - Copilot fixes and QA notes
+
+Changes and fixes
+- QA only.
+
+Tests executed
+- Enroll router tests (_decode_image valid/invalid bytes, route registration, mount). 
+  Result: PASS (FastAPI TestClient deprecation warning and TF warnings logged; invalid bytes log expected).
