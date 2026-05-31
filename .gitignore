@@ -32,3 +32,4 @@ Thumbs.db
 # Local database files
 *.db
 *.xml
+.claude

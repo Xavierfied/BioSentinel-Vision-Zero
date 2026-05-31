@@ -109,3 +109,23 @@ not face_detector directly — so the escalation is transparent.
 Blank image returns None through both stages, singleton type confirmed,
 no circular imports, RetinaFace int-return edge case handled.
 
+### #6 feat(cv): integrate DeepFace embeddings, cosine similarity, anti-spoofing
+**Hash:** [paste hash here]
+**What was built:**
+- app/cv/embeddings.py:
+  - extract_embedding() — DeepFace.represent() with anti_spoofing=True, Facenet model
+  - embedding_to_json() / json_to_embedding() — serialisation for DB storage
+  - compute_similarity() — cosine similarity, zero-vector guarded
+  - is_match() — returns (bool, float) so Gemma always gets the raw score
+
+**Why:**
+anti_spoofing=True makes DeepFace check texture/reflection for photo attacks.
+enforce_detection=False is intentional — face was already confirmed by the CV
+cascade (YOLO/RetinaFace). is_match() returns the raw score alongside the bool
+because Gemma needs it as the face_similarity signal in the risk engine.
+embedding_to_json/json_to_embedding handle the User.face_embedding DB field.
+
+**Tested:**
+Cosine similarity math verified (identical=1.0, orthogonal=0.0), zero vector
+guard, is_match threshold, JSON round-trip, graceful None on bad input and blank image.
+
