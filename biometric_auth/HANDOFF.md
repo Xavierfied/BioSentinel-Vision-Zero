@@ -189,3 +189,33 @@ multi-role acceptance, invalid token 401 confirmed.
 
 ---
 
+### #9 feat(middleware): implement AuditLog middleware and JWT validation
+**Hash:** [paste hash here]
+**What was built:**
+- app/middleware/audit.py:
+  - AuditMiddleware(BaseHTTPMiddleware) — wraps every request
+  - dispatch() — decodes JWT into request.state, calls route,
+    writes AuditLog after response
+  - _write_audit_log() — opens its own AsyncSessionLocal session
+    (not get_db — middleware is outside FastAPI DI lifecycle)
+  - _get_client_ip() — X-Forwarded-For aware, falls back to
+    client.host, then "unknown"
+  - SKIP_LOGGING_PATHS — docs/openapi routes not logged
+
+**Why:**
+AuditLog rows are the data source for Gemma's risk signals
+(failed_attempts_today, actions_per_minute, ip history).
+Without this middleware writing every request, the risk engine
+has nothing to query. request.state.user_id lets all routers
+identify the caller without re-decoding the JWT themselves.
+_write_audit_log uses its own session because middleware runs
+outside the request-scoped get_db lifecycle — using Depends()
+in middleware causes runtime errors.
+
+**Tested:**
+IP extraction (X-Forwarded-For, host fallback, unknown),
+valid JWT populates state, invalid JWT sets state to None,
+risk_score placeholder attached, module imports cleanly.
+
+---
+
