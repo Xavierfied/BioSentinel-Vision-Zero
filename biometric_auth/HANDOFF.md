@@ -165,3 +165,27 @@ numpy 2.4.6, protobuf 7.35.0, opencv 4.13 all unaffected.
 
 ---
 
+### #8 feat(middleware): add RBAC role enforcement and require_role dependency
+**Hash:** [paste hash here]
+**What was built:**
+- app/middleware/__init__.py (empty)
+- app/middleware/rbac.py:
+  - get_current_user() — validates JWT, fetches User from DB,
+    checks is_active
+  - require_role(*roles) — factory that returns a FastAPI
+    dependency; raises 403 if user role not in allowed roles
+
+**Why:**
+Every admin and demo endpoint needs role protection. Using a
+factory pattern (require_role returns a dependency) means
+protection is a one-liner on any route: 
+Depends(require_role("admin")). No role logic scattered across
+routers. get_current_user is also exported so non-role-restricted
+routes can still identify who is calling.
+
+**Tested:**
+Factory returns callable, correct role passes, wrong role 403,
+multi-role acceptance, invalid token 401 confirmed.
+
+---
+

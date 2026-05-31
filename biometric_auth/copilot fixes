@@ -28,3 +28,30 @@ Changes and fixes
 Tests executed
 - Step-up detector tests (singleton, blank detect, RetinaFace blank, circular import, type safety).
   Result: PASS (warnings suppressed).
+
+# Commit 6 - Copilot fixes and QA notes
+
+Changes and fixes
+- QA only.
+
+Tests executed
+- Embeddings tests (similarity, is_match, JSON round-trip, bad JSON, blank image).
+  Result: PASS (TensorFlow/DeepFace warnings logged; blank image flagged as spoof and returned None).
+
+# Commit 7 - Copilot fixes and QA notes
+
+Changes and fixes
+- QA only.
+
+Tests executed
+- Liveness challenge test (blank frame).
+  Result: PASS (blank frame rejected with "No face detected in frame").
+
+# Commit 8 - Copilot fixes and QA notes
+
+Changes and fixes
+- QA only.
+
+Tests executed
+- RBAC middleware tests (require_role factory, allow/deny roles, invalid token 401).
+  Result: PASS.
