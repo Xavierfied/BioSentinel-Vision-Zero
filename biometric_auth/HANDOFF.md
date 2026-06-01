@@ -308,3 +308,37 @@ flow verified end-to-end.
 
 ---
 
+### #13 feat(router): add /login endpoint with 2FA and attempt tracking
+**Hash:** [paste hash here]
+**What was built:**
+- app/routers/login.py:
+  - POST /auth/login — 12-step pipeline: user fetch →
+    active check → attempt count → password → image
+    decode → liveness → face detect → embedding →
+    similarity → JWT issue → audit → return tokens
+  - _count_recent_failures() — counts login_failed
+    AuditLog entries today for this user
+  - _write_audit() — shared helper for audit entries
+    within the login transaction
+
+**Why:**
+Every failure path writes an AuditLog entry with a
+specific reason — Gemma queries these in commit #11.
+Attempt counter checked BEFORE password verify to
+prevent timing attacks from revealing whether the
+account exists. is_active=False set inline when
+lockout threshold hit so it takes effect immediately
+in the same transaction. HTTPException re-raised
+before the generic 500 handler (same pattern as
+enroll.py) so specific 401/403 messages are preserved.
+
+**Tested:**
+Unit: wrong password 401 with remaining count,
+locked account 403, unknown user 401.
+Manual: full enroll→login curl flow, attempt counter
+increments, account locks at 3 failures, AuditLog
+rows verified in DB directly, JWT payload verified
+at jwt.io.
+
+---
+
