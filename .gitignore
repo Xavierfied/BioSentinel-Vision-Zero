@@ -33,3 +33,5 @@ Thumbs.db
 *.db
 *.xml
 .claude
+*.png 
+*.jpg
