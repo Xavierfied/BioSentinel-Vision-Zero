@@ -342,3 +342,38 @@ at jwt.io.
 
 ---
 
+### #14 feat(router): add /heartbeat, /admin, /demo endpoints
+**Hash:** [paste hash here]
+**What was built:**
+- app/routers/heartbeat.py:
+  - POST /heartbeat — decodes image, runs CV pipeline,
+    sets request.state.face_similarity for RiskMiddleware
+  - No face → similarity=0.0, returns status not 400
+    (missing face during session is a risk signal not an error)
+- app/routers/admin.py:
+  - POST /admin/unblock/{user_id} — admin only,
+    sets is_active=True, revokes existing sessions
+- app/routers/demo.py:
+  - POST /demo/trigger-ip-shift — injects mismatched IPs
+  - POST /demo/spam-requests — writes 20 rapid audit rows
+  - POST /demo/reset-signals — cleans up demo entries
+  All three use AsyncSessionLocal directly (not get_db)
+  per lesson from commit #13 rollback issue.
+
+**Why:**
+Heartbeat returns 200 always (even no-face) because
+RiskMiddleware intercepts and overrides with 401/403
+based on the score — the route itself should not decide.
+face_similarity=0.0 on no-face is a strong Gemma signal.
+Demo triggers write to AuditLog using the same fields
+_assemble_signals() reads, so Gemma sees real signal
+spikes without needing to wait for actual events.
+
+**Tested:**
+Unit: all routes registered, no-face sets similarity 0.0,
+matched face sets correct similarity on request.state.
+Manual: heartbeat flow with real JWT, admin unblock,
+demo trigger→heartbeat→reset cycle confirmed.
+
+---
+
