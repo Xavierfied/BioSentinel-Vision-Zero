@@ -410,31 +410,32 @@ DB AuditLog entries verified after each step.
 
 ---
 
-### #16 feat(ui): build enroll page with webcam, liveness widget, and form
+### #16 feat(ui): scaffold React + Vite frontend with routing and auth context
 **Hash:** [paste hash here]
 **What was built:**
-- app/static/enroll.html: dark-themed enrollment page,
-  two-panel layout (form + webcam), 3-dot progress
-  indicator, captured face preview
-- app/static/enroll.js: MediaPipe FaceMesh via CDN,
-  EAR blink detection, head turn detection using nose
-  offset ratio — same math and thresholds as backend
-  liveness.py (EAR 0.20, offsets 0.65/0.35).
-  3 consecutive frame confirmation before capture.
-  Auto-captures frame, submits FormData to /enroll/.
+- frontend/ — React + Vite project (port 3000)
+- vite.config.js: proxy all API routes to localhost:8000,
+  eliminates CORS entirely in development
+- AuthContext.jsx: JWT stored in React state (memory only,
+  no localStorage per project rules), login(), logout(),
+  authFetch() wrapper, JWT payload decoded client-side
+- ProtectedRoute.jsx: redirects to /login if no token
+- App.jsx: React Router with 3 routes (/enroll, /login,
+  /dashboard), Dashboard is protected
+- global.css: CSS variables for dark theme, used by all
+  pages via var(--accent) etc.
+- Placeholder pages for all 3 routes
 
 **Why:**
-3 consecutive frames prevents a single accidental
-frame from triggering capture. The frontend uses the
-same landmark indices (33,160,158... for left eye etc.)
-as the Python backend so both agree on what a blink
-looks like. CDN loads MediaPipe — acceptable for demo
-since the air-gap constraint is about risk scoring,
-not page asset delivery.
+Vite proxy means zero hardcoded localhost:8000 in React
+code — all API calls use relative URLs. authFetch()
+in context means authenticated requests never need to
+manually add headers. JWT in React state means it
+is cleared automatically on page refresh (intentional
+security behaviour for airgapped ZTA demo).
 
 **Tested:**
-Files exist, all HTML element IDs present, MediaPipe
-CDN scripts referenced, all JS functions present,
-landmark indices match backend. Manual: webcam loads,
-challenge detects, dots fill, capture previews,
-form submits, user appears in DB.
+All files present, MediaPipe CDN in index.html,
+all API routes proxied, no localStorage in AuthContext,
+authFetch injects Bearer header. Manual: dev server
+boots, routing works, ProtectedRoute redirects.

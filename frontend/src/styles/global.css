@@ -1,0 +1,29 @@
+*, *::before, *::after { box-sizing: border-box; }
+
+:root {
+  --bg-base:    #0d0d1a;
+  --bg-panel:   #1a1a2e;
+  --bg-input:   #0d0d1a;
+  --accent:     #6c63ff;
+  --accent-lt:  #a29bfe;
+  --success:    #00b894;
+  --warning:    #fdcb6e;
+  --danger:     #e17055;
+  --text:       #e0e0e0;
+  --text-muted: #888;
+  --border:     #2a2a4a;
+}
+
+body {
+  margin: 0;
+  background: var(--bg-base);
+  color: var(--text);
+  font-family: 'Segoe UI', system-ui, sans-serif;
+}
+
+a { color: var(--accent-lt); }
+
+input, button {
+  font-family: inherit;
+  font-size: 0.95rem;
+}
