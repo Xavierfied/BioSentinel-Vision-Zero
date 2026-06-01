@@ -1,0 +1,9 @@
+Commit 3 - Copilot fixes and QA notes
+
+Changes and fixes
+- Created weights/ and downloaded yolov8n-face.pt using the official model URL used by the library.
+- Updated FaceDetector default model path to weights/yolov8n-face.pt in app/cv/detector.py.
+
+Tests executed
+- Detector smoke tests (blank image, detect_best, to_dict, lazy load).
+  Result: PASS (no model path errors after the update).
