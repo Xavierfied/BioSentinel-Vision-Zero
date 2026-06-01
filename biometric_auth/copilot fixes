@@ -1,4 +1,4 @@
-Commit 3 - Copilot fixes and QA notes
+# Commit 3 - Copilot fixes and QA notes
 
 Changes and fixes
 - Created weights/ and downloaded yolov8n-face.pt using the official model URL used by the library.
@@ -8,7 +8,7 @@ Tests executed
 - Detector smoke tests (blank image, detect_best, to_dict, lazy load).
   Result: PASS (no model path errors after the update).
 
-Commit 4 - Copilot fixes and QA notes
+# Commit 4 - Copilot fixes and QA notes
 
 Changes and fixes
 - Pinned bcrypt to 4.0.1 to resolve passlib backend errors.
@@ -17,3 +17,14 @@ Changes and fixes
 Tests executed
 - JWT service tests (hash/verify, access/refresh tokens, tamper handling, token pair).
   Result: PASS (tampered token decode logged and returned None as expected).
+
+# Commit 5 - Copilot fixes and QA notes
+
+Changes and fixes
+- Installed tf-keras to satisfy retinaface requirements with TensorFlow 2.21.0.
+- Pinned tf-keras in requirements.txt for consistent installs.
+- Suppressed TensorFlow/absl startup warnings in app/cv/stepup.py.
+
+Tests executed
+- Step-up detector tests (singleton, blank detect, RetinaFace blank, circular import, type safety).
+  Result: PASS (warnings suppressed).
