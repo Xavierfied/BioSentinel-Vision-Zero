@@ -219,3 +219,35 @@ risk_score placeholder attached, module imports cleanly.
 
 ---
 
+### #10 feat(risk): build Gemma risk engine with structured JSON output
+**Hash:** [paste hash here]
+**What was built:**
+- app/risk/__init__.py (empty)
+- app/risk/engine.py:
+  - build_signal_dict() — typed constructor for signal dict
+  - build_prompt() — builds Gemma prompt with signals +
+    JSON-only instruction
+  - query_gemma() — async httpx POST to LM Studio, strips
+    markdown fences, parses JSON
+  - validate_score() — clamps to [0,100], falls back to 50.0
+  - evaluate_risk() — orchestrates all above, returns
+    (float, str) tuple
+
+**Why:**
+Gemma receives only behavioral signals as plain text —
+never images, embeddings, or secrets (per project rules).
+Falls back to 50.0 (neutral) on any failure so a Gemma
+outage never crashes the app or locks users out.
+markdown fence stripping handles Gemma occasionally wrapping
+JSON in backticks despite instructions.
+evaluate_risk returns a tuple so callers always get both
+the score (for threshold checks) and the reason
+(for AuditLog.meta).
+
+**Tested:**
+signal dict keys, prompt content, score validation (happy
+path + bad values + missing key), fallback on None,
+markdown fence stripping, evaluate_risk with mock Gemma.
+
+---
+
