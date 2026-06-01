@@ -251,3 +251,30 @@ markdown fence stripping, evaluate_risk with mock Gemma.
 
 ---
 
+### #11 feat(middleware): add RiskMiddleware injecting risk score into request state
+**Hash:** [paste hash here]
+**What was built:**
+- app/middleware/risk.py:
+  - RiskMiddleware(BaseHTTPMiddleware) — activates on RISK_CHECK_PATHS
+  - dispatch() — runs route first, then scores, then acts on result
+  - _assemble_signals() — queries AuditLog for IP change, failed
+    attempts, actions/min, session age; builds signal dict for Gemma
+  - _handle_stepup() — revokes all active sessions for user
+  - _handle_lockout() — sets is_active=False + revokes all sessions
+
+**Why:**
+Middleware runs AFTER call_next so the heartbeat router can set
+request.state.face_similarity before Gemma is called.
+Opens its own AsyncSessionLocal sessions (no Depends() in middleware).
+Any exception falls back to returning the original response —
+a Gemma outage or DB hiccup never locks users out or crashes the app.
+request.state.risk_score is set before returning so AuditMiddleware
+(commit #9) picks it up and writes it to AuditLog.
+
+**Tested:**
+Skip non-risk paths, skip unauthenticated requests, safe score
+injects to state, step-up returns 401, lockout returns 403,
+exception safety confirmed.
+
+---
+
