@@ -439,3 +439,41 @@ All files present, MediaPipe CDN in index.html,
 all API routes proxied, no localStorage in AuthContext,
 authFetch injects Bearer header. Manual: dev server
 boots, routing works, ProtectedRoute redirects.
+
+---
+
+### #17 feat(ui): build LivenessCamera shared component
+**Hash:** [paste hash here]
+**What was built:**
+- frontend/src/components/LivenessCamera.jsx
+- frontend/src/components/LivenessCamera.css
+
+  Props: onCapture(blob, dataUrl, challengeType),
+         onError(message)
+  Uses window.FaceMesh / window.Camera from CDN —
+  not npm mediapipe (avoids protobuf conflicts).
+  Same landmark indices and thresholds as backend
+  liveness.py — EAR 0.20, turns 0.65/0.35, 3 frames.
+  Video mirrored in CSS (scaleX -1) for selfie UX.
+  Captured blob is NOT mirrored — raw frame sent
+  to backend.
+  framesRef/capturedRef/challengeRef used alongside
+  state to prevent stale closures in MediaPipe
+  callback (onResults fires outside React render cycle).
+  Cleanup: camera.stop() + faceMesh.close() on unmount.
+
+**Why:**
+Single component shared by Enroll and Login means
+the MediaPipe logic is written and debugged once.
+Ref mirrors of state variables are necessary because
+MediaPipe callbacks capture closure values at init
+time — without refs, frames count never increments
+correctly inside onResults.
+
+**Tested:**
+Both files exist, landmark indices match backend,
+thresholds match constants.py, no browser storage,
+onCapture signature correct, window.FaceMesh used,
+mirror transform present, cleanup on unmount.
+Manual: webcam loads, face mesh draws, challenge
+detects, dots fill, blob captured and logged.

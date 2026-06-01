@@ -200,3 +200,28 @@ Tests executed
      CONFIRM_FRAMES/3, TURN_LEFT_THRESHOLD/0.65 all confirmed in JS. PASS
   6. Live server: GET /static/enroll.html → 200 (server running, StaticFiles mounted). PASS
   Result: PASS (all 6 tests green).
+
+---
+
+# Commit 17 - Copilot fixes and QA notes
+
+Changes and fixes
+- QA only.
+
+Tests executed
+- LivenessCamera component tests (8 tests):
+  1. Files exist: src/components/LivenessCamera.jsx and LivenessCamera.css both present. PASS
+  2. Landmark indices match backend liveness.py: LEFT_EYE [33,160,158,133,153,144],
+     RIGHT_EYE [362,385,387,263,373,380], NOSE_TIP [1], L_CHEEK [234], R_CHEEK [454]
+     all confirmed in component constants. PASS
+  3. Thresholds match backend constants: EAR_THRESHOLD/0.20, TURN_LEFT_THRESHOLD/0.65,
+     TURN_RIGHT_THRESHOLD/0.35, CONFIRM_FRAMES/3 all confirmed as literals. PASS
+  4. No browser storage APIs: no localStorage or sessionStorage present in component. PASS
+  5. onCapture signature: called as onCapture(blob, dataUrl, challengeRef.current) —
+     all three arguments (blob, dataUrl, challengeType) passed to parent. PASS
+  6. CDN integration: uses window.FaceMesh (not an ES import) — MediaPipe loaded from
+     CDN via index.html as required by project rules. PASS
+  7. Video mirror: scaleX(-1) transform present on both video and canvas elements. PASS
+  8. Cleanup on unmount: camera.stop() and faceMesh.close() both called in useEffect
+     cleanup function. PASS
+  Result: PASS (all 8 tests green).

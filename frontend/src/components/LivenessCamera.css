@@ -1,0 +1,89 @@
+.liveness-wrapper {
+  position: relative;
+  width: 100%;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #000;
+}
+
+.liveness-wrapper video {
+  width: 100%;
+  display: block;
+}
+
+.liveness-wrapper canvas {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.challenge-box {
+  margin-top: 0.8rem;
+  padding: 0.9rem 1rem;
+  background: var(--bg-base);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  text-align: center;
+}
+
+.challenge-instruction {
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 1rem;
+  margin-bottom: 0.3rem;
+}
+
+.challenge-status {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.progress-dots {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--border);
+  transition: background 0.2s;
+}
+
+.dot.active  { background: var(--accent); }
+.dot.done    { background: var(--success); }
+
+.captured-preview {
+  margin-top: 0.8rem;
+  display: none;
+}
+
+.captured-preview.visible {
+  display: block;
+}
+
+.captured-preview img {
+  width: 100%;
+  border-radius: 8px;
+  border: 2px solid var(--success);
+}
+
+.captured-label {
+  color: var(--success);
+  font-size: 0.8rem;
+  margin-bottom: 0.4rem;
+}
+
+.camera-error {
+  padding: 1rem;
+  color: var(--danger);
+  background: #2d0a0a;
+  border: 1px solid var(--danger);
+  border-radius: 8px;
+  font-size: 0.85rem;
+  text-align: center;
+}
