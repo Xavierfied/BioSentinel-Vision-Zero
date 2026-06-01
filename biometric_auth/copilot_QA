@@ -108,6 +108,7 @@ Changes and fixes
 - Issue: failed-login attempts were not persisting because get_db rolled back on HTTPException.
 - Patch: persist login_failed audit rows and lockout updates via AsyncSessionLocal in app/routers/login.py.
 - Note: API server must restart to load the patch before retesting attempt counters.
+- Helper script: added tmp_reset_user.py to clear testuser lockout and today’s login_failed rows during QA.
 
 Tests executed
 - Login router tests (wrong password, locked account, unknown user, route registration).
@@ -115,3 +116,20 @@ Tests executed
 - Live API test (wrong password x3) still returned "2 attempt(s) remaining" because the running server had not been restarted.
 - Live API retest after restart: remaining count decremented to 2, then 1, then 403 lockout.
 - AuditLog check: recent entries include login_failed (wrong password), login_success (similarity 1.000), and enroll success.
+
+---
+
+# Commit 14 - Copilot fixes and QA notes
+
+Changes and fixes
+- QA only.
+
+Tests executed
+- Router/heartbeat unit tests (heartbeat/admin/demo routes, no-face and matched-face similarity).
+  Result: PASS (TensorFlow/oneDNN warnings logged on import).
+- Demo triggers + risk checks:
+  - Admin unblock works (user 1 is_active True).
+  - Demo signals injected and reset OK.
+  - Heartbeat returns face_similarity=0.935 with matched=true on correct face.
+  - Heartbeat returns matched=false with low similarity on wrong face.
+  - AuditLog currently shows login_success and admin_unblock rows; risk_score not yet observed in AuditLog for heartbeat.
