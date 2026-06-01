@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Enroll — AirGapped ZTA</title>
+
+  <!-- MediaPipe CDN scripts (must load in this order, before enroll.js) -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4/face_mesh.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3/drawing_utils.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3/camera_utils.js"></script>
+
+  <!-- App logic, deferred so the DOM is parsed first -->
+  <script src="enroll.js" defer></script>
+
+  <style>
+    body {
+      background: #0d0d1a;
+      color: #e0e0e0;
+      font-family: 'Segoe UI', sans-serif;
+      margin: 0;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 2rem;
+      min-height: 100vh;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+    .header h1 {
+      color: #6c63ff;
+      font-size: 1.8rem;
+    }
+    .header p {
+      color: #888;
+      font-size: 0.9rem;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2rem;
+      align-items: start;
+    }
+
+    .panel {
+      background: #1a1a2e;
+      border-radius: 12px;
+      padding: 1.5rem;
+      border: 1px solid #2a2a4a;
+    }
+
+    .panel h2 {
+      color: #a29bfe;
+      font-size: 1rem;
+      margin-bottom: 1.2rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    .form-group {
+      margin-bottom: 1rem;
+    }
+    .form-group label {
+      display: block;
+      color: #888;
+      font-size: 0.8rem;
+      margin-bottom: 0.3rem;
+    }
+    .form-group input {
+      width: 100%;
+      padding: 0.7rem;
+      background: #0d0d1a;
+      border: 1px solid #2a2a4a;
+      border-radius: 6px;
+      color: #e0e0e0;
+      font-size: 0.95rem;
+      box-sizing: border-box;
+    }
+    .form-group input:focus {
+      outline: none;
+      border-color: #6c63ff;
+    }
+
+    .webcam-wrapper {
+      position: relative;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .webcam-wrapper video,
+    .webcam-wrapper canvas {
+      width: 100%;
+      display: block;
+    }
+    .webcam-wrapper canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+
+    .challenge-box {
+      margin-top: 1rem;
+      padding: 1rem;
+      border-radius: 8px;
+      background: #0d0d1a;
+      border: 1px solid #2a2a4a;
+      text-align: center;
+    }
+    .challenge-box .challenge-type {
+      color: #6c63ff;
+      font-weight: bold;
+      font-size: 1.1rem;
+    }
+    .challenge-box .challenge-status {
+      margin-top: 0.4rem;
+      font-size: 0.85rem;
+      color: #888;
+    }
+
+    .captured-preview {
+      margin-top: 1rem;
+      display: none;
+    }
+    .captured-preview img {
+      width: 100%;
+      border-radius: 8px;
+      border: 2px solid #00b894;
+    }
+
+    .submit-area {
+      grid-column: 1 / -1;
+      text-align: center;
+      margin-top: 1rem;
+    }
+
+    button#submitBtn {
+      padding: 0.9rem 3rem;
+      background: #6c63ff;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    button#submitBtn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+    button#submitBtn:hover:not(:disabled) {
+      background: #5a52e0;
+    }
+
+    .status-msg {
+      margin-top: 1rem;
+      padding: 0.8rem;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      display: none;
+    }
+    .status-msg.error {
+      background: #2d0a0a;
+      border: 1px solid #e17055;
+      color: #e17055;
+    }
+    .status-msg.success {
+      background: #0a2d1a;
+      border: 1px solid #00b894;
+      color: #00b894;
+    }
+
+    .progress-dots {
+      display: flex;
+      justify-content: center;
+      gap: 0.4rem;
+      margin-top: 0.5rem;
+    }
+    .progress-dots .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #2a2a4a;
+      transition: background 0.2s;
+    }
+    .progress-dots .dot.active {
+      background: #6c63ff;
+    }
+    .progress-dots .dot.done {
+      background: #00b894;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🔐 AirGapped ZTA</h1>
+      <p>Biometric Enrollment — Register your identity</p>
+    </div>
+
+    <div class="grid">
+      <!-- Left panel: form -->
+      <div class="panel">
+        <h2>Account Details</h2>
+        <form id="enrollForm">
+          <div class="form-group">
+            <label>Username</label>
+            <input type="text" id="username" required
+                   minlength="3" maxlength="50"
+                   placeholder="Choose a username"/>
+          </div>
+          <div class="form-group">
+            <label>Email</label>
+            <input type="email" id="email" required
+                   placeholder="your@email.com"/>
+          </div>
+          <div class="form-group">
+            <label>Password</label>
+            <input type="password" id="password"
+                   required minlength="8"
+                   placeholder="Min 8 characters"/>
+          </div>
+        </form>
+        <p style="color:#555;font-size:0.8rem;margin-top:1rem">
+          Already enrolled?
+          <a href="/static/login.html"
+             style="color:#a29bfe">Log in here</a>
+        </p>
+      </div>
+
+      <!-- Right panel: webcam -->
+      <div class="panel">
+        <h2>Face Capture</h2>
+        <div class="webcam-wrapper">
+          <video id="video" autoplay playsinline
+                 muted></video>
+          <canvas id="overlay"></canvas>
+        </div>
+
+        <div class="challenge-box">
+          <div class="challenge-type" id="challengeText">
+            Initialising camera...
+          </div>
+          <div class="challenge-status" id="statusText">
+            Please wait
+          </div>
+          <div class="progress-dots">
+            <div class="dot" id="dot0"></div>
+            <div class="dot" id="dot1"></div>
+            <div class="dot" id="dot2"></div>
+          </div>
+        </div>
+
+        <div class="captured-preview" id="previewBox">
+          <p style="color:#00b894;font-size:0.8rem;
+                    margin-bottom:0.4rem">
+            ✅ Face captured
+          </p>
+          <img id="capturedImg" src="" alt="Captured face"/>
+        </div>
+      </div>
+
+      <!-- Full-width submit area -->
+      <div class="submit-area">
+        <button id="submitBtn" disabled>
+          Complete Enrollment
+        </button>
+        <div class="status-msg" id="statusMsg"></div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

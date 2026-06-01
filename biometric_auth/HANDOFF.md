@@ -10,7 +10,7 @@ Zero cloud dependency for risk scoring.
 ## Commit Log
 
 ### #1 feat(db): add SQLAlchemy models for User, Session, AuditLog
-**Hash:** [paste hash here]
+**Hash:** 2fe6016
 **What was built:**
 - Project folder scaffolded
 - constants.py with all system-wide thresholds
@@ -28,7 +28,7 @@ create_tables() ran cleanly, .db file created, all three tables queryable.
 ---
 
 ### #2 feat(db): add Pydantic schemas and async get_db dependency
-**Hash:** [paste hash here]
+**Hash:** 2fe6016
 **What was built:**
 - app/schemas.py: UserCreate, UserOut, SessionOut, AuditLogOut,
   TokenResponse, LoginRequest, EnrollRequest (all Pydantic v2)
@@ -46,7 +46,7 @@ Pydantic v2 validation works on UserCreate fields.
 ---
 
 ### #3 feat(cv): implement YOLOv8 face detector with confidence threshold
-**Hash:** [paste hash here]
+**Hash:** 549fdd9
 **What was built:**
 - app/cv/__init__.py (empty, marks cv as a package)
 - app/cv/detector.py:
@@ -70,7 +70,7 @@ to_dict() excludes face_crop numpy array, model lazy loads cleanly.
 ---
 
 ### #4 feat(auth): implement JWT access and refresh token service
-**Hash:** [paste hash here]
+**Hash:** cb720fc
 **What was built:**
 - app/auth/__init__.py (empty)
 - app/auth/jwt_service.py:
@@ -96,7 +96,7 @@ token pair tuple all confirmed passing.
 ---
 
 ### #5 feat(cv): add RetinaFace step-up for low-confidence detections
-**Hash:** [paste hash here]
+**Hash:** 23b4e8c
 **What was built:**
 - app/cv/stepup.py:
   - StepUpDetector class with detect() and _retinaface_detect()
@@ -120,7 +120,7 @@ no circular imports, RetinaFace int-return edge case handled.
 ---
 
 ### #6 feat(cv): integrate DeepFace embeddings, cosine similarity, anti-spoofing
-**Hash:** [paste hash here]
+**Hash:** df72786
 **What was built:**
 - app/cv/embeddings.py:
   - extract_embedding() — DeepFace.represent() with anti_spoofing=True, Facenet model
@@ -142,7 +142,7 @@ guard, is_match threshold, JSON round-trip, graceful None on bad input and blank
 ---
 
 ### #7 feat(cv): implement MediaPipe liveness challenge (blink/turn)
-**Hash:** [paste hash here]
+**Hash:** 3c9a0b8
 **What was built:**
 - app/cv/liveness.py: ChallengeType enum, LivenessChallenge dataclass,
   get_random_challenge(), _eye_aspect_ratio(), _detect_blink(),
@@ -166,7 +166,7 @@ numpy 2.4.6, protobuf 7.35.0, opencv 4.13 all unaffected.
 ---
 
 ### #8 feat(middleware): add RBAC role enforcement and require_role dependency
-**Hash:** [paste hash here]
+**Hash:** cc9948f
 **What was built:**
 - app/middleware/__init__.py (empty)
 - app/middleware/rbac.py:
@@ -190,7 +190,7 @@ multi-role acceptance, invalid token 401 confirmed.
 ---
 
 ### #9 feat(middleware): implement AuditLog middleware and JWT validation
-**Hash:** [paste hash here]
+**Hash:** ecbfacf
 **What was built:**
 - app/middleware/audit.py:
   - AuditMiddleware(BaseHTTPMiddleware) — wraps every request
@@ -220,7 +220,7 @@ risk_score placeholder attached, module imports cleanly.
 ---
 
 ### #10 feat(risk): build Gemma risk engine with structured JSON output
-**Hash:** [paste hash here]
+**Hash:** 342e2a4
 **What was built:**
 - app/risk/__init__.py (empty)
 - app/risk/engine.py:
@@ -252,7 +252,7 @@ markdown fence stripping, evaluate_risk with mock Gemma.
 ---
 
 ### #11 feat(middleware): add RiskMiddleware injecting risk score into request state
-**Hash:** [paste hash here]
+**Hash:** 331b9e3
 **What was built:**
 - app/middleware/risk.py:
   - RiskMiddleware(BaseHTTPMiddleware) — activates on RISK_CHECK_PATHS
@@ -279,7 +279,7 @@ exception safety confirmed.
 ---
 
 ### #12 feat(router): add /enroll endpoint with full biometric pipeline
-**Hash:** [paste hash here]
+**Hash:** 26bd4ef
 **What was built:**
 - app/routers/__init__.py (empty)
 - app/routers/enroll.py:
@@ -309,7 +309,7 @@ flow verified end-to-end.
 ---
 
 ### #13 feat(router): add /login endpoint with 2FA and attempt tracking
-**Hash:** [paste hash here]
+**Hash:** 9c4943e
 **What was built:**
 - app/routers/login.py:
   - POST /auth/login — 12-step pipeline: user fetch →
@@ -343,7 +343,7 @@ at jwt.io.
 ---
 
 ### #14 feat(router): add /heartbeat, /admin, /demo endpoints
-**Hash:** [paste hash here]
+**Hash:** 03b6e54
 **What was built:**
 - app/routers/heartbeat.py:
   - POST /heartbeat — decodes image, runs CV pipeline,
@@ -378,7 +378,7 @@ demo trigger→heartbeat→reset cycle confirmed.
 ---
 
 ### #15 feat(app): wire all routers and middleware in main.py with lifespan
-**Hash:** [paste hash here]
+**Hash:** 37c02c8
 **What was built:**
 - app/main.py:
   - lifespan() — creates DB tables on startup
@@ -407,3 +407,34 @@ the app is forward-compatible with FastAPI 0.100+.
 route table, both middleware confirmed registered,
 full enroll→login→heartbeat chain on live server,
 DB AuditLog entries verified after each step.
+
+---
+
+### #16 feat(ui): build enroll page with webcam, liveness widget, and form
+**Hash:** [paste hash here]
+**What was built:**
+- app/static/enroll.html: dark-themed enrollment page,
+  two-panel layout (form + webcam), 3-dot progress
+  indicator, captured face preview
+- app/static/enroll.js: MediaPipe FaceMesh via CDN,
+  EAR blink detection, head turn detection using nose
+  offset ratio — same math and thresholds as backend
+  liveness.py (EAR 0.20, offsets 0.65/0.35).
+  3 consecutive frame confirmation before capture.
+  Auto-captures frame, submits FormData to /enroll/.
+
+**Why:**
+3 consecutive frames prevents a single accidental
+frame from triggering capture. The frontend uses the
+same landmark indices (33,160,158... for left eye etc.)
+as the Python backend so both agree on what a blink
+looks like. CDN loads MediaPipe — acceptable for demo
+since the air-gap constraint is about risk scoring,
+not page asset delivery.
+
+**Tested:**
+Files exist, all HTML element IDs present, MediaPipe
+CDN scripts referenced, all JS functions present,
+landmark indices match backend. Manual: webcam loads,
+challenge detects, dots fill, capture previews,
+form submits, user appears in DB.

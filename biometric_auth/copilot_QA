@@ -176,3 +176,27 @@ Tests executed
       real client IP. Gemma missing IP history for auth events.
     - no_embedding on heartbeat is expected with anti-spoofing active on a different frame;
       same enrolled image gives similarity=1.000.
+
+---
+
+# Commit 16 - Copilot fixes and QA notes
+
+Changes and fixes
+- QA only.
+- Note: open() calls in QA script required encoding='utf-8'; enroll.html contains non-ASCII
+  bytes (likely UTF-8 encoded characters) that cp1252 (Windows default) cannot decode.
+
+Tests executed
+- Enroll frontend static file tests (6 tests):
+  1. Files exist: app/static/enroll.html and app/static/enroll.js both present. PASS
+  2. HTML elements: all 13 required element IDs present (video, overlay, enrollForm,
+     username, email, password, challengeText, statusText, submitBtn, capturedImg,
+     dot0, dot1, dot2). PASS
+  3. MediaPipe CDN scripts: face_mesh.js, drawing_utils.js, camera_utils.js all
+     referenced in HTML. PASS
+  4. JS functions: all 8 required functions present (eyeAspectRatio, detectChallenge,
+     captureFrame, onResults, initCamera, submitEnrollment, showStatus, init). PASS
+  5. Landmark indices and thresholds match backend: LEFT_EYE/33, EAR_THRESHOLD/0.20,
+     CONFIRM_FRAMES/3, TURN_LEFT_THRESHOLD/0.65 all confirmed in JS. PASS
+  6. Live server: GET /static/enroll.html → 200 (server running, StaticFiles mounted). PASS
+  Result: PASS (all 6 tests green).
