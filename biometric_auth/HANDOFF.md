@@ -165,3 +165,57 @@ numpy 2.4.6, protobuf 7.35.0, opencv 4.13 all unaffected.
 
 ---
 
+### #8 feat(middleware): add RBAC role enforcement and require_role dependency
+**Hash:** [paste hash here]
+**What was built:**
+- app/middleware/__init__.py (empty)
+- app/middleware/rbac.py:
+  - get_current_user() — validates JWT, fetches User from DB,
+    checks is_active
+  - require_role(*roles) — factory that returns a FastAPI
+    dependency; raises 403 if user role not in allowed roles
+
+**Why:**
+Every admin and demo endpoint needs role protection. Using a
+factory pattern (require_role returns a dependency) means
+protection is a one-liner on any route: 
+Depends(require_role("admin")). No role logic scattered across
+routers. get_current_user is also exported so non-role-restricted
+routes can still identify who is calling.
+
+**Tested:**
+Factory returns callable, correct role passes, wrong role 403,
+multi-role acceptance, invalid token 401 confirmed.
+
+---
+
+### #9 feat(middleware): implement AuditLog middleware and JWT validation
+**Hash:** [paste hash here]
+**What was built:**
+- app/middleware/audit.py:
+  - AuditMiddleware(BaseHTTPMiddleware) — wraps every request
+  - dispatch() — decodes JWT into request.state, calls route,
+    writes AuditLog after response
+  - _write_audit_log() — opens its own AsyncSessionLocal session
+    (not get_db — middleware is outside FastAPI DI lifecycle)
+  - _get_client_ip() — X-Forwarded-For aware, falls back to
+    client.host, then "unknown"
+  - SKIP_LOGGING_PATHS — docs/openapi routes not logged
+
+**Why:**
+AuditLog rows are the data source for Gemma's risk signals
+(failed_attempts_today, actions_per_minute, ip history).
+Without this middleware writing every request, the risk engine
+has nothing to query. request.state.user_id lets all routers
+identify the caller without re-decoding the JWT themselves.
+_write_audit_log uses its own session because middleware runs
+outside the request-scoped get_db lifecycle — using Depends()
+in middleware causes runtime errors.
+
+**Tested:**
+IP extraction (X-Forwarded-For, host fallback, unknown),
+valid JWT populates state, invalid JWT sets state to None,
+risk_score placeholder attached, module imports cleanly.
+
+---
+

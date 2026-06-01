@@ -6,5 +6,5 @@ GEMMA_TEMPERATURE = 0.4
 DATABASE_URL = "sqlite+aiosqlite:///./biometric_auth.db"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 REFRESH_TOKEN_EXPIRE_DAYS = 7
-SECRET_KEY = "dev-secret-change-in-prod"
+SECRET_KEY = "this-is-the-ultra-secret-code-idk-why-am-i-typing-this"
 ALGORITHM = "HS256"
