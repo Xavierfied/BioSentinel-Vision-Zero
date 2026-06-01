@@ -1,2 +1,39 @@
 commits/
 .venv
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+dist/
+*.egg-info/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# IDE/editor settings
+.vscode/
+.idea/
+
+# Logs and runtime files
+*.log
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Local database files
+*.db
+*.xml
+.claude
+*.png 
+*.jpg
