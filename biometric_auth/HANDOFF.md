@@ -278,3 +278,33 @@ exception safety confirmed.
 
 ---
 
+### #12 feat(router): add /enroll endpoint with full biometric pipeline
+**Hash:** [paste hash here]
+**What was built:**
+- app/routers/__init__.py (empty)
+- app/routers/enroll.py:
+  - POST /enroll/ — 8-step pipeline: username check →
+    image decode → liveness → face detect → embedding
+    → user create → audit log → return UserOut
+  - _decode_image() — PIL bytes → BGR numpy array
+  - Uses Form() + UploadFile for multipart submissions
+  - db.flush() after User creation to get ID before
+    AuditLog write; no explicit commit (get_db handles it)
+
+**Why:**
+Enrollment is the only way users enter the system.
+face_embedding stored as JSON in User.face_embedding
+is the permanent identity ground truth — every future
+login and heartbeat compares against this.
+Liveness check runs on enrollment too so attackers
+cannot enroll using someone else's photo.
+All CV steps return None on failure so errors map
+cleanly to HTTP 400s with specific messages.
+
+**Tested:**
+Router imports cleanly, _decode_image shape and error
+handling, route registration confirmed, mock pipeline
+flow verified end-to-end.
+
+---
+
