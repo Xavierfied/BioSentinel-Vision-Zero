@@ -377,3 +377,33 @@ demo trigger→heartbeat→reset cycle confirmed.
 
 ---
 
+### #15 feat(app): wire all routers and middleware in main.py with lifespan
+**Hash:** [paste hash here]
+**What was built:**
+- app/main.py:
+  - lifespan() — creates DB tables on startup
+  - FastAPI app with title, description, version
+  - CORSMiddleware for localhost origins
+  - RiskMiddleware registered before AuditMiddleware
+    (FastAPI reverses order — Audit runs first)
+  - All 5 routers included
+  - Static files mounted conditionally (only if
+    app/static/ exists — frontend not built yet)
+  - /health and / endpoints for system checks
+
+**Why:**
+Middleware registration ORDER is critical.
+AuditMiddleware must attach request.state.user_id
+before RiskMiddleware reads it. FastAPI reverses
+add_middleware() order at runtime, so Risk is
+added first, Audit second — this ensures Audit
+runs first on the way in, Risk runs last on
+the way out (after route sets face_similarity).
+Lifespan replaces deprecated @app.on_event so
+the app is forward-compatible with FastAPI 0.100+.
+
+**Tested:**
+/health 200, / 200, all 9 routes present in
+route table, both middleware confirmed registered,
+full enroll→login→heartbeat chain on live server,
+DB AuditLog entries verified after each step.

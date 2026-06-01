@@ -133,3 +133,46 @@ Tests executed
   - Heartbeat returns face_similarity=0.935 with matched=true on correct face.
   - Heartbeat returns matched=false with low similarity on wrong face.
   - AuditLog currently shows login_success and admin_unblock rows; risk_score not yet observed in AuditLog for heartbeat.
+
+---
+
+# Commit 15 - Copilot fixes and QA notes
+
+Changes and fixes
+- QA only.
+- QA script fix: app.user_middleware holds Starlette Middleware namedtuples; corrected middleware
+  introspection from type(m).__name__ (always 'Middleware') to m.cls.__name__ to get actual class names.
+
+Tests executed
+- main.py integration tests (import, /health 200, / 200, route registration, middleware stack).
+  Result: PASS (all 5 tests green).
+- Registered routes confirmed: /, /admin/unblock/{user_id}, /auth/login, /demo/reset-signals,
+  /demo/spam-requests, /demo/trigger-ip-shift, /enroll/, /health, /heartbeat.
+- Middleware order confirmed: ['AuditMiddleware', 'RiskMiddleware', 'CORSMiddleware']
+  (Starlette reports reverse of registration; AuditMiddleware runs first on requests as intended).
+- TensorFlow/oneDNN warnings logged on import — expected, not errors.
+- Test A — live health check (running server):
+  GET /health → {"status":"ok","service":"AirGapped ZTA Biometric Auth","version":"1.0.0"}
+  Result: PASS (exact match).
+- Test B — /docs route and tag verification (via /openapi.json):
+  All 9 routes present with correct tags:
+    enrollment: POST /enroll/
+    authentication: POST /auth/login
+    monitoring: POST /heartbeat
+    admin: POST /admin/unblock/{user_id}
+    demo: POST /demo/trigger-ip-shift, /demo/spam-requests, /demo/reset-signals
+    system: GET /health, GET /
+  Result: PASS.
+- Test C — full live end-to-end (enroll → login → heartbeat → AuditLog):
+  Enroll: e2euser created (id=3, is_active=True). PASS
+  Login: JWT issued, similarity=1.000, access + refresh tokens returned. PASS
+  Heartbeat: 200 no_embedding, face_similarity=0.0 — face detected but anti-spoofing
+    blocked embedding on second webcam frame (WIN_20260601_20_50_30_Pro.jpg).
+    face_similarity=0.0 correctly set on request.state. Gemma scored 5.0 (low risk). PASS
+  AuditLog: 4 rows confirmed — enroll, login_success x2, POST /heartbeat (risk_score=5.0). PASS
+  No 500 errors in any response. PASS
+  Observations:
+    - enroll/login routers write AuditLog with ip=None; only AuditMiddleware rows carry
+      real client IP. Gemma missing IP history for auth events.
+    - no_embedding on heartbeat is expected with anti-spoofing active on a different frame;
+      same enrolled image gives similarity=1.000.
