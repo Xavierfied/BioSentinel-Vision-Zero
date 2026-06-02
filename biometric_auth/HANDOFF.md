@@ -477,3 +477,70 @@ onCapture signature correct, window.FaceMesh used,
 mirror transform present, cleanup on unmount.
 Manual: webcam loads, face mesh draws, challenge
 detects, dots fill, blob captured and logged.
+
+---
+
+### #18 feat(ui): build Enroll page
+**Hash:** [paste hash here]
+**What was built:**
+- frontend/src/pages/Enroll.jsx
+- frontend/src/pages/Enroll.css
+  Two-panel layout (form left, camera right).
+  Imports LivenessCamera — onCapture stores blob
+  and challengeType in state. Submit button disabled
+  until capturedBlob is set. FormData POST to
+  /enroll/ with all 5 required fields. Success
+  redirects to /login after 1.8s. Field-level
+  validation with inline error messages. Responsive
+  grid collapses to single column below 640px.
+
+**Why:**
+Submit gated on capturedBlob means the user cannot
+accidentally submit without a face — the button is
+physically disabled, not just a soft warning.
+capturedChallenge passed to FormData ensures backend
+runs the correct liveness verifier for whichever
+challenge the frontend issued.
+
+**Tested:**
+Files exist, LivenessCamera wired, /enroll/ endpoint,
+all 5 FormData fields, submit gate, redirect, responsive
+CSS. Manual: full happy path, validation errors,
+duplicate username, DB confirmed user created.
+
+---
+
+### #19 feat(ui): build Login page with 2FA and JWT storage
+**Hash:** [paste hash here]
+**What was built:**
+- frontend/src/pages/Login.jsx
+- frontend/src/pages/Login.css
+  Two-panel layout (credentials + LivenessCamera).
+  On success: login(data) stores JWT in AuthContext
+  memory, redirects to /dashboard.
+  On 401: parses "N attempt(s) remaining" from
+  detail string, shows amber warning, resets camera
+  with key increment so user gets a new challenge.
+  On 403: renders full locked-box UI.
+  cameraKey state forces LivenessCamera remount on
+  every failed attempt — prevents reusing a captured
+  frame across multiple attempts.
+  useEffect redirects authenticated users away from
+  login page immediately.
+
+**Why:**
+Camera remount on failure is a security decision —
+if the face capture was accepted but password was
+wrong, the attacker should not be able to reuse
+that capture for a second attempt. Each attempt
+requires a fresh live capture.
+JWT stored in AuthContext (React memory) only —
+confirmed no localStorage usage.
+
+**Tested:**
+AuthContext login() called, /auth/login endpoint,
+all 4 FormData fields, camera remount on failure,
+locked UI, attempts parsing, /dashboard redirect,
+no localStorage. Manual: happy path, wrong password
+counter, lockout, wrong face rejection, already-
+authenticated redirect.

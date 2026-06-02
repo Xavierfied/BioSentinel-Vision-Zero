@@ -225,3 +225,48 @@ Tests executed
   8. Cleanup on unmount: camera.stop() and faceMesh.close() both called in useEffect
      cleanup function. PASS
   Result: PASS (all 8 tests green).
+
+---
+
+# Commit 18 - Copilot fixes and QA notes
+
+Changes and fixes
+- QA only.
+
+Tests executed
+- Enroll page tests (8 tests):
+  1. Files exist: src/pages/Enroll.jsx and Enroll.css both present. PASS
+  2. LivenessCamera wired: component imported, onCapture and onError props both used. PASS
+  3. Correct endpoint: form submits to fetch('/enroll/'). PASS
+  4. FormData fields: all 5 required fields present — username, email, password,
+     challenge_type, image. PASS (5/5)
+  5. Submit gated: button disabled until capturedBlob is set (!capturedBlob). PASS
+  6. Post-enroll redirect: navigate('/login') called on success. PASS
+  7. Responsive CSS: grid-template-columns: 1fr and max-width: 640px both present. PASS
+  8. No browser storage APIs: no localStorage present in component. PASS
+  Result: PASS (all 8 tests green).
+
+
+# Commit 19 - Copilot fixes and QA notes
+
+Changes and fixes
+- QA only.
+
+Tests executed
+- Login page tests (9 tests):
+  1. Files exist: src/pages/Login.jsx and Login.css both present. PASS
+  2. AuthContext: useAuth hook used, login(data) called on success. PASS
+  3. Correct endpoint: form submits to fetch('/auth/login'). PASS
+  4. FormData fields: all 4 required fields present — username, password,
+     challenge_type, image. PASS (4/4)
+  5. Camera remount: cameraKey + setCameraKey present — LivenessCamera
+     remounts on a failed login attempt. PASS
+  6. Locked state: locked flag and "Account Locked" UI both present. PASS
+  7. Attempts remaining: attemptsLeft parsed via match(/) from API response
+     detail string. PASS
+  8. Post-login redirect: navigate('/dashboard') called on success. PASS
+  9. No browser storage APIs: no localStorage present in component. PASS
+  Result: PASS (all 9 tests green).
+
+---
+

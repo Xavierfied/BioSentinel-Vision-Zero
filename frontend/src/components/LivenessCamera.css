@@ -34,6 +34,18 @@
   margin-bottom: 0.3rem;
 }
 
+.challenge-countdown {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--accent);
+  margin: 0.2rem 0;
+  transition: color 0.2s;
+}
+
+.challenge-countdown.urgent {
+  color: var(--danger);
+}
+
 .challenge-status {
   color: var(--text-muted);
   font-size: 0.82rem;

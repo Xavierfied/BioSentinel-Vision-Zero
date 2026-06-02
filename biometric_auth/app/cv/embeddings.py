@@ -38,7 +38,7 @@ def extract_embedding(face_crop: np.ndarray) -> Optional[np.ndarray]:
             img_path=face_crop,
             model_name=EMBEDDING_MODEL,
             enforce_detection=False,
-            anti_spoofing=True,
+            anti_spoofing=False,
         )
         embedding = result[0]["embedding"]
         return np.array(embedding, dtype=np.float32)

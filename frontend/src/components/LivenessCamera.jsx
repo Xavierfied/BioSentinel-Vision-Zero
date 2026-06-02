@@ -12,6 +12,13 @@ const EAR_THRESHOLD        = 0.20
 const TURN_LEFT_THRESHOLD  = 0.65
 const TURN_RIGHT_THRESHOLD = 0.35
 const CONFIRM_FRAMES       = 3
+// neutral-position gate — face must be in resting pose for this many frames
+// before challenge detection is armed; prevents static-photo replay attacks
+const NEUTRAL_FRAMES     = 10
+const EAR_OPEN_THRESHOLD = 0.25   // pixel-space EAR above this = eyes open
+const TURN_NEUTRAL_MIN   = 0.40   // nose-offset range for face-forward
+const TURN_NEUTRAL_MAX   = 0.60
+const CHALLENGE2_TIMEOUT = 5000  // ms to complete challenge 2 after challenge 1 passes
 
 // MediaPipe landmark indices — MUST match backend liveness.py
 const LEFT_EYE  = [33, 160, 158, 133, 153, 144]
@@ -24,19 +31,22 @@ function euclidean(a, b) {
   return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2)
 }
 
-function eyeAspectRatio(landmarks, indices) {
-  const pts = indices.map(i => landmarks[i])
+function eyeAspectRatio(landmarks, indices, imgW, imgH) {
+  const pts = indices.map(i => ({
+    x: landmarks[i].x * imgW,
+    y: landmarks[i].y * imgH,
+  }))
   const v1 = euclidean(pts[1], pts[5])
   const v2 = euclidean(pts[2], pts[4])
   const h  = euclidean(pts[0], pts[3])
   return h === 0 ? 0 : (v1 + v2) / (2 * h)
 }
 
-function detectChallenge(landmarks, challenge) {
+function detectChallenge(landmarks, challenge, imgW, imgH) {
   if (challenge === 'blink') {
     const ear = (
-      eyeAspectRatio(landmarks, LEFT_EYE) +
-      eyeAspectRatio(landmarks, RIGHT_EYE)
+      eyeAspectRatio(landmarks, LEFT_EYE, imgW, imgH) +
+      eyeAspectRatio(landmarks, RIGHT_EYE, imgW, imgH)
     ) / 2
     return ear < EAR_THRESHOLD
   }
@@ -51,6 +61,23 @@ function detectChallenge(landmarks, challenge) {
   return false
 }
 
+function isNeutral(landmarks, challenge, imgW, imgH) {
+  if (challenge === 'blink') {
+    const ear = (
+      eyeAspectRatio(landmarks, LEFT_EYE, imgW, imgH) +
+      eyeAspectRatio(landmarks, RIGHT_EYE, imgW, imgH)
+    ) / 2
+    return ear > EAR_OPEN_THRESHOLD
+  }
+  const noseX = landmarks[NOSE_TIP].x
+  const lchX  = landmarks[L_CHEEK].x
+  const rchX  = landmarks[R_CHEEK].x
+  const faceW = Math.abs(rchX - lchX)
+  if (faceW === 0) return false
+  const offset = (noseX - lchX) / faceW
+  return offset > TURN_NEUTRAL_MIN && offset < TURN_NEUTRAL_MAX
+}
+
 export function pickRandomChallenge() {
   return CHALLENGES[Math.floor(Math.random() * CHALLENGES.length)]
 }
@@ -63,15 +90,20 @@ export default function LivenessCamera({ onCapture, onError }) {
   const [statusText, setStatusText]   = useState('Please wait')
   const [capturedUrl, setCapturedUrl] = useState(null)
   const [cameraError, setCameraError] = useState(null)
+  const [countdown,  setCountdown]  = useState(null)
 
   const videoRef    = useRef(null)
   const canvasRef   = useRef(null)
   const cameraRef   = useRef(null)
   // Refs mirror state so the MediaPipe onResults callback (a stable
   // closure) always reads current values rather than stale snapshots.
-  const capturedRef  = useRef(false)
-  const framesRef    = useRef(0)
-  const challengeRef = useRef(null)
+  const capturedRef   = useRef(false)
+  const framesRef     = useRef(0)
+  const challengeRef  = useRef(null)
+  const phaseRef      = useRef('neutral')
+  const neutralCntRef = useRef(0)
+  const challenge2Ref = useRef(null)
+  const c2DeadlineRef = useRef(null)
 
   const captureFrame = useCallback(() => {
     const video  = videoRef.current
@@ -114,7 +146,6 @@ export default function LivenessCamera({ onCapture, onError }) {
 
     const landmarks = lmList[0]
 
-    // Draw face mesh overlay using CDN globals
     if (window.drawConnectors && window.FACEMESH_TESSELATION) {
       window.drawConnectors(ctx, landmarks,
         window.FACEMESH_TESSELATION,
@@ -126,19 +157,99 @@ export default function LivenessCamera({ onCapture, onError }) {
         { color: '#6c63ff', lineWidth: 1.5 })
     }
 
-    const detected = detectChallenge(landmarks, challengeRef.current)
+    const imgW = video.videoWidth  || 640
+    const imgH = video.videoHeight || 480
+    const curPhase = phaseRef.current
 
-    if (detected) {
-      framesRef.current += 1
-      setFrames(framesRef.current)
-      setStatusText(`Hold it... ${framesRef.current}/${CONFIRM_FRAMES}`)
-      if (framesRef.current >= CONFIRM_FRAMES) {
-        captureFrame()
+    // Phase neutral — resting pose required before challenge 1 arms.
+    // Stops static-photo replay: photo already in challenge pose fails isNeutral.
+    if (curPhase === 'neutral') {
+      if (isNeutral(landmarks, challengeRef.current, imgW, imgH)) {
+        neutralCntRef.current += 1
+        if (neutralCntRef.current >= NEUTRAL_FRAMES) {
+          phaseRef.current = 'c1'
+          setStatusText('Go!')
+        } else {
+          setStatusText('Hold still...')
+        }
+      } else {
+        neutralCntRef.current = 0
+        setStatusText(
+          challengeRef.current === 'blink'
+            ? 'Open your eyes fully first'
+            : 'Face forward to begin'
+        )
       }
-    } else {
-      framesRef.current = 0
-      setFrames(0)
-      setStatusText('Keep trying...')
+      return
+    }
+
+    // Phase c1 — first challenge.
+    if (curPhase === 'c1') {
+      const detected = detectChallenge(landmarks, challengeRef.current, imgW, imgH)
+      if (detected) {
+        framesRef.current += 1
+        setFrames(framesRef.current)
+        setStatusText(`Hold it... ${framesRef.current}/${CONFIRM_FRAMES}`)
+        if (framesRef.current >= CONFIRM_FRAMES) {
+          // Arm challenge 2: pick a different challenge, start 5s countdown.
+          const pool = CHALLENGES.filter(c => c !== challengeRef.current)
+          const c2   = pool[Math.floor(Math.random() * pool.length)]
+          challenge2Ref.current  = c2
+          framesRef.current      = 0
+          setFrames(0)
+          c2DeadlineRef.current  = Date.now() + CHALLENGE2_TIMEOUT
+          phaseRef.current       = 'c2'
+          setInstruction(`Step 2 of 2: ${INSTRUCTIONS[c2]}`)
+          setStatusText('Now do the next action!')
+          setCountdown(Math.ceil(CHALLENGE2_TIMEOUT / 1000))
+        }
+      } else {
+        framesRef.current = 0
+        setFrames(0)
+        setStatusText('Keep trying...')
+      }
+      return
+    }
+
+    // Phase c2 — second challenge with 5-second hard deadline.
+    // Stops video-replay: attacker would need a recording of exactly this
+    // 2-challenge sequence in order, with no time to swap devices.
+    if (curPhase === 'c2') {
+      const msLeft = c2DeadlineRef.current - Date.now()
+      if (msLeft <= 0) {
+        // Timed out — full reset with fresh random challenges
+        const c = CHALLENGES[Math.floor(Math.random() * CHALLENGES.length)]
+        challengeRef.current  = c
+        setChallenge(c)
+        challenge2Ref.current = null
+        neutralCntRef.current = 0
+        framesRef.current     = 0
+        setFrames(0)
+        phaseRef.current      = 'neutral'
+        setCountdown(null)
+        c2DeadlineRef.current = null
+        setInstruction(`Step 1 of 2: ${INSTRUCTIONS[c]}`)
+        setStatusText("Time's up — starting over")
+        return
+      }
+
+      const secsLeft = Math.ceil(msLeft / 1000)
+      setCountdown(secsLeft)
+
+      const detected = detectChallenge(landmarks, challenge2Ref.current, imgW, imgH)
+      if (detected) {
+        framesRef.current += 1
+        setFrames(framesRef.current)
+        setStatusText(`Hold it... ${framesRef.current}/${CONFIRM_FRAMES}`)
+        if (framesRef.current >= CONFIRM_FRAMES) {
+          setCountdown(null)
+          captureFrame()
+        }
+      } else {
+        framesRef.current = 0
+        setFrames(0)
+        setStatusText(`${secsLeft}s left — keep going!`)
+      }
     }
   }, [captureFrame])
 
@@ -147,7 +258,7 @@ export default function LivenessCamera({ onCapture, onError }) {
     const c = CHALLENGES[Math.floor(Math.random() * CHALLENGES.length)]
     setChallenge(c)
     challengeRef.current = c
-    setInstruction(INSTRUCTIONS[c])
+    setInstruction(`Step 1 of 2: ${INSTRUCTIONS[c]}`)
     setStatusText('Position your face in the camera')
 
     // Guard: MediaPipe must be loaded from CDN
@@ -216,6 +327,11 @@ export default function LivenessCamera({ onCapture, onError }) {
         <div className="challenge-instruction">
           {instruction}
         </div>
+        {countdown !== null && (
+          <div className={`challenge-countdown${countdown <= 2 ? ' urgent' : ''}`}>
+            ⏱ {countdown}s
+          </div>
+        )}
         <div className="challenge-status">
           {statusText}
         </div>
