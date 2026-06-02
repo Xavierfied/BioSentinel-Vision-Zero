@@ -1,10 +1,12 @@
 MATCH_THRESHOLD = 0.6
 RISK_SCORE_STEPUP_THRESHOLD = 70
+RISK_SCORE_LOCKOUT_THRESHOLD = 90
 FACE_CONFIDENCE_THRESHOLD = 0.75
 LM_STUDIO_URL = "http://localhost:1234/v1"
 GEMMA_TEMPERATURE = 0.4
 DATABASE_URL = "sqlite+aiosqlite:///./biometric_auth.db"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 REFRESH_TOKEN_EXPIRE_DAYS = 7
-SECRET_KEY = "dev-secret-change-in-prod"
+MAX_FAILED_LOGIN_ATTEMPTS = 3
+SECRET_KEY = "this-is-the-ultra-secret-code-idk-why-am-i-typing-this"
 ALGORITHM = "HS256"

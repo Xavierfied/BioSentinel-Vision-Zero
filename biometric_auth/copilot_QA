@@ -1,0 +1,153 @@
+# Commit 3 - Copilot fixes and QA notes
+
+Changes and fixes
+- Created weights/ and downloaded yolov8n-face.pt using the official model URL used by the library.
+- Updated FaceDetector default model path to weights/yolov8n-face.pt in app/cv/detector.py.
+
+Tests executed
+- Detector smoke tests (blank image, detect_best, to_dict, lazy load).
+  Result: PASS (no model path errors after the update).
+
+---
+
+# Commit 4 - Copilot fixes and QA notes
+
+Changes and fixes
+- Pinned bcrypt to 4.0.1 to resolve passlib backend errors.
+- Pinned all dependency versions in requirements.txt for reproducible installs.
+
+Tests executed
+- JWT service tests (hash/verify, access/refresh tokens, tamper handling, token pair).
+  Result: PASS (tampered token decode logged and returned None as expected).
+
+---
+
+# Commit 5 - Copilot fixes and QA notes
+
+Changes and fixes
+- Installed tf-keras to satisfy retinaface requirements with TensorFlow 2.21.0.
+- Pinned tf-keras in requirements.txt for consistent installs.
+- Suppressed TensorFlow/absl startup warnings in app/cv/stepup.py.
+
+Tests executed
+- Step-up detector tests (singleton, blank detect, RetinaFace blank, circular import, type safety).
+  Result: PASS (warnings suppressed).
+
+---
+
+# Commit 6 - Copilot fixes and QA notes
+
+Changes and fixes
+- QA only.
+
+Tests executed
+- Embeddings tests (similarity, is_match, JSON round-trip, bad JSON, blank image).
+  Result: PASS (TensorFlow/DeepFace warnings logged; blank image flagged as spoof and returned None).
+
+---
+
+# Commit 7 - Copilot fixes and QA notes
+
+Changes and fixes
+- QA only.
+
+Tests executed
+- Liveness challenge test (blank frame).
+  Result: PASS (blank frame rejected with "No face detected in frame").
+
+---
+
+# Commit 8 - Copilot fixes and QA notes
+
+Changes and fixes
+- QA only.
+
+Tests executed
+- RBAC middleware tests (require_role factory, allow/deny roles, invalid token 401).
+  Result: PASS.
+
+---
+
+# Commit 9 - Copilot fixes and QA notes
+
+Changes and fixes
+- QA only.
+
+Tests executed
+- Audit middleware tests (_get_client_ip parsing, JWT attach, invalid token handling).
+  Result: PASS.
+
+---
+
+# Commit 11 - Copilot fixes and QA notes
+
+Changes and fixes
+- QA only.
+
+Tests executed
+- Risk middleware tests (pass-through paths, safe/step-up/lockout scores, exception safety).
+  Result: PASS (intentional exception logged in test 7).
+
+---
+
+# Commit 12 - Copilot fixes and QA notes
+
+Changes and fixes
+- QA only.
+
+Tests executed
+- Enroll router tests (_decode_image valid/invalid bytes, route registration, mount). 
+  Result: PASS (FastAPI TestClient deprecation warning and TF warnings logged; invalid bytes log expected).
+
+---
+
+# Commit 13 - Copilot fixes and QA notes
+
+Changes and fixes
+- QA only.
+- Issue: failed-login attempts were not persisting because get_db rolled back on HTTPException.
+- Patch: persist login_failed audit rows and lockout updates via AsyncSessionLocal in app/routers/login.py.
+- Note: API server must restart to load the patch before retesting attempt counters.
+- Helper script: added tmp_reset_user.py to clear testuser lockout and today’s login_failed rows during QA.
+
+Tests executed
+- Login router tests (wrong password, locked account, unknown user, route registration).
+  Result: PASS (TensorFlow/oneDNN warnings logged on import).
+- Live API test (wrong password x3) still returned "2 attempt(s) remaining" because the running server had not been restarted.
+- Live API retest after restart: remaining count decremented to 2, then 1, then 403 lockout.
+- AuditLog check: recent entries include login_failed (wrong password), login_success (similarity 1.000), and enroll success.
+
+---
+
+# Commit 14 - Copilot fixes and QA notes
+
+Changes and fixes
+- QA only.
+
+Tests executed
+- Router/heartbeat unit tests (heartbeat/admin/demo routes, no-face and matched-face similarity).
+  Result: PASS (TensorFlow/oneDNN warnings logged on import).
+- Demo triggers + risk checks:
+  - Admin unblock works (user 1 is_active True).
+  - Demo signals injected and reset OK.
+  - Heartbeat returns face_similarity=0.935 with matched=true on correct face.
+  - Heartbeat returns matched=false with low similarity on wrong face.
+  - AuditLog currently shows login_success and admin_unblock rows; risk_score not yet observed in AuditLog for heartbeat.
+
+---
+
+# Commit 15 - Copilot fixes and QA notes
+
+Changes and fixes
+- QA only.
+- QA script fix: app.user_middleware holds Starlette Middleware namedtuples; corrected middleware
+  introspection from type(m).__name__ (always 'Middleware') to m.cls.__name__ to get actual class names.
+
+Tests executed
+- main.py integration tests (import, /health 200, / 200, route registration, middleware stack).
+  Result: PASS (all 5 tests green).
+- Registered routes confirmed: /, /admin/unblock/{user_id}, /auth/login, /demo/reset-signals,
+  /demo/spam-requests, /demo/trigger-ip-shift, /enroll/, /health, /heartbeat.
+- Middleware order confirmed: ['AuditMiddleware', 'RiskMiddleware', 'CORSMiddleware']
+  (Starlette reports reverse of registration; AuditMiddleware runs first on requests as intended).
+- TensorFlow/oneDNN warnings logged on import — expected, not errors.
