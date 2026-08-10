@@ -48,8 +48,8 @@ RIGHT_CHEEK_INDEX = 454
 EAR_BLINK_THRESHOLD = 0.20
 # Nose offset across the face width; ~0.5 is centred. Turning the head moves
 # the nose toward a cheek, past these bounds (mirror-view, as the user sees it).
-HEAD_TURN_LEFT_OFFSET = 0.65
-HEAD_TURN_RIGHT_OFFSET = 0.35
+HEAD_TURN_LEFT_OFFSET = 0.72
+HEAD_TURN_RIGHT_OFFSET = 0.28
 
 
 class ChallengeType(Enum):

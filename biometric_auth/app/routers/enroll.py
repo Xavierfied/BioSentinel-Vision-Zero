@@ -28,6 +28,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.jwt_service import get_user_by_username, hash_password
 from app.cv.embeddings import embedding_to_json, extract_embedding
 from app.cv.liveness import ChallengeType, LivenessChallenge, verify_challenge_frame
+from app.cv.pad import check_presentation_attack
 from app.cv.stepup import step_up_detector
 from app.database import get_db
 from app.models import AuditLog, User
@@ -109,6 +110,20 @@ async def enroll_user(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="No face detected in image",
+            )
+
+        # STEP 4b — presentation attack detection: reject phone/print replays
+        # before spending the embedding model.  Runs on the face crop so the
+        # signals are isolated to the face region, not the background.
+        is_attack, pad_reason = check_presentation_attack(detection.face_crop)
+        if is_attack:
+            logger.warning("PAD rejected enrollment frame: %s", pad_reason)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "Presentation attack detected — remove devices from "
+                    "frame and ensure only your face is visible."
+                ),
             )
 
         # STEP 5 — extract the embedding; anti-spoofing lives inside DeepFace,

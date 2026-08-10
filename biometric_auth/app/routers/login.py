@@ -36,6 +36,7 @@ from app.auth.jwt_service import (
 )
 from app.cv.embeddings import extract_embedding, is_match, json_to_embedding
 from app.cv.liveness import ChallengeType, LivenessChallenge, verify_challenge_frame
+from app.cv.pad import check_presentation_attack
 from app.cv.stepup import step_up_detector
 from app.database import AsyncSessionLocal, get_db
 from app.models import AuditLog, User
@@ -251,6 +252,29 @@ async def login(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="No face detected. Please retry.",
+            )
+
+        # STEP 7b — presentation attack detection: reject phone/print replays.
+        # Counts as a failed login attempt to deter repeated spoofing.
+        is_attack, pad_reason = check_presentation_attack(detection.face_crop)
+        if is_attack:
+            logger.warning("PAD rejected login frame for %s: %s", user.username, pad_reason)
+            failures, locked = await _record_failed_attempt(
+                user.id, f"presentation_attack: {pad_reason}"
+            )
+            if locked:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Too many failed attempts. Account locked.",
+                )
+            remaining = MAX_FAILED_LOGIN_ATTEMPTS - failures
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=(
+                    "Presentation attack detected — remove devices from frame "
+                    f"and ensure only your face is visible. "
+                    f"{remaining} attempt(s) remaining."
+                ),
             )
 
         # STEP 8 — extract the embedding; anti-spoofing lives inside DeepFace, so

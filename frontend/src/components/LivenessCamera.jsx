@@ -9,8 +9,8 @@ const INSTRUCTIONS = {
   turn_right: '➡️  Turn your head RIGHT',
 }
 const EAR_THRESHOLD        = 0.20
-const TURN_LEFT_THRESHOLD  = 0.65
-const TURN_RIGHT_THRESHOLD = 0.35
+const TURN_LEFT_THRESHOLD  = 0.72
+const TURN_RIGHT_THRESHOLD = 0.28
 const CONFIRM_FRAMES       = 3
 // neutral-position gate — face must be in resting pose for this many frames
 // before challenge detection is armed; prevents static-photo replay attacks
@@ -119,7 +119,7 @@ export default function LivenessCamera({ onCapture, onError }) {
       setInstruction('✅ Face captured!')
       setStatusText('Challenge passed — ready to proceed')
       if (cameraRef.current) cameraRef.current.stop()
-      onCapture(blob, dataUrl, challengeRef.current)
+      onCapture(blob, dataUrl, challenge2Ref.current ?? challengeRef.current)
     }, 'image/jpeg', 0.92)
   }, [onCapture])
 
