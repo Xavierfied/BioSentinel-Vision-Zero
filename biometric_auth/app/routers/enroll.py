@@ -19,10 +19,13 @@ from fastapi import (
     File,
     Form,
     HTTPException,
+    Request,
     UploadFile,
     status,
 )
 from PIL import Image
+from pydantic import ValidationError
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.jwt_service import get_user_by_username, hash_password
@@ -31,8 +34,12 @@ from app.cv.liveness import ChallengeType, LivenessChallenge, verify_challenge_f
 from app.cv.pad import check_presentation_attack
 from app.cv.stepup import step_up_detector
 from app.database import get_db
+from app.config import settings
 from app.models import AuditLog, User
-from app.schemas import UserOut
+from app.schemas import UserCreate, UserOut
+from app.security.net import get_client_ip
+from app.security.ratelimit import limit_per_ip
+from app.security.uploads import read_jpeg_upload
 
 router = APIRouter(prefix="/enroll", tags=["enrollment"])
 logger = logging.getLogger(__name__)
@@ -56,14 +63,20 @@ def _decode_image(image_bytes: bytes) -> Optional[np.ndarray]:
         return None
 
 
-@router.post("/", response_model=UserOut, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/",
+    response_model=UserOut,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(limit_per_ip("enroll", lambda: settings.enroll_rate_limit_per_minute))],
+)
 async def enroll_user(
+    request: Request,
     username: str = Form(...),
     email: str = Form(...),
     password: str = Form(...),
     image: UploadFile = File(...),
     challenge_type: str = Form(default="blink"),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
 ):
     """Enroll a new user from a username/password plus a single live face frame.
 
@@ -73,16 +86,33 @@ async def enroll_user(
     rolls back via the same dependency and is reported as a generic 500.
     """
     try:
-        # STEP 1 — reject duplicate usernames before doing any CV work.
+        # STEP 1 — validate fields (username 3–50 chars, real email,
+        # password 8+ chars), then reject duplicates before any CV work.
+        try:
+            UserCreate(username=username, email=email, password=password)
+        except ValidationError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=[
+                    {"field": ".".join(str(p) for p in err["loc"]), "message": err["msg"]}
+                    for err in exc.errors()
+                ],
+            )
         existing = await get_user_by_username(db, username)
         if existing:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Username already registered",
             )
+        email_taken = await db.execute(select(User.id).where(User.email == email))
+        if email_taken.first() is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Email already registered",
+            )
 
         # STEP 2 — decode the uploaded frame into a BGR array.
-        image_bytes = await image.read()
+        image_bytes = await read_jpeg_upload(image)
         frame = _decode_image(image_bytes)
         if frame is None:
             raise HTTPException(
@@ -126,8 +156,8 @@ async def enroll_user(
                 ),
             )
 
-        # STEP 5 — extract the embedding; anti-spoofing lives inside DeepFace,
-        # so a spoof/low-quality crop comes back as None.
+        # STEP 5 — extract the embedding. None means DeepFace failed on the
+        # crop (or flagged a spoof, if DEEPFACE_ANTI_SPOOFING is enabled).
         embedding = extract_embedding(detection.face_crop)
         if embedding is None:
             raise HTTPException(
@@ -155,7 +185,7 @@ async def enroll_user(
         log = AuditLog(
             user_id=new_user.id,
             action="enroll",
-            ip_address=None,
+            ip_address=get_client_ip(request),
             risk_score=None,
             meta='{"status": "success"}',
         )

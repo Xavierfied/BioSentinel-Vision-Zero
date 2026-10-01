@@ -35,3 +35,10 @@ Thumbs.db
 .claude
 *.png 
 *.jpg
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Liveness test clips (biometric data, keep local)
+biometric_auth/tests/fixtures/clips/

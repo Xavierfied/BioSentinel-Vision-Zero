@@ -22,7 +22,9 @@ app/
   routers/     enroll, login, heartbeat, admin, demo
   models.py, schemas.py, database.py, main.py
 weights/       yolov8n-face.pt, face_landmarker.task
-constants.py   thresholds (match, risk, lockout, JWT expiry, LM Studio URL)
+app/config.py  all settings, read from environment variables / .env
+migrations/    Alembic migrations (SQLite now, PostgreSQL-ready)
+tests/         pytest suite (CV libraries stubbed, runs in seconds)
 ```
 
 ### Setup
@@ -31,22 +33,50 @@ constants.py   thresholds (match, risk, lockout, JWT expiry, LM Studio URL)
 cd biometric_auth
 python -m venv .venv && .venv\Scripts\activate
 pip install -r requirements.txt
+
+copy .env.example .env      # then set SECRET_KEY (the app will not start without it)
+python -c "import secrets; print(secrets.token_urlsafe(48))"
+
+alembic upgrade head        # create / update the database schema
 uvicorn app.main:app --reload
 ```
 
-Requires an LM Studio (or compatible) server at `LM_STUDIO_URL` in
-`constants.py` for risk scoring; the engine falls back to a neutral score of
-50 if it's unreachable, so the API still runs without it.
+Already have a `biometric_auth.db` from before migrations existed? Mark it
+first, then upgrade: `alembic stamp 0001_baseline && alembic upgrade head`.
+Existing sessions are dropped by the upgrade, so everyone logs in again.
+
+Switching to PostgreSQL later: see [docs/POSTGRES.md](biometric_auth/docs/POSTGRES.md).
+
+Tests: `pip install -r requirements-test.txt && python -m pytest -q`.
+
+Requires an LM Studio (or compatible) server at `LM_STUDIO_URL` for risk
+scoring; the engine falls back to a neutral score of 50 if it's unreachable,
+so the API still runs without it.
 
 ### API surface
 
 | Router | Route | Purpose |
 |---|---|---|
 | enroll | `POST /enroll/` | liveness → face detect → embedding → create user |
-| login | `POST /auth/login` | password + liveness + face match → JWT pair |
+| login | `POST /auth/login` | password + liveness + face match → JWT pair (opens a server-side session) |
+| login | `POST /auth/refresh` | swap a refresh token for a new pair (each refresh token works once) |
+| login | `POST /auth/logout` | revoke the caller's session |
+| login | `GET /auth/me` | the caller's profile |
 | heartbeat | `POST /heartbeat` | mid-session face recheck, feeds risk engine |
-| admin | `POST /admin/unblock/{user_id}` | admin-only, lifts a lockout |
-| demo | `POST /demo/*` | inject synthetic risk signals for the risk engine |
+| admin | `POST /admin/unblock/{user_id}` | admin-only, lifts a lockout and revokes the user's sessions |
+| demo | `POST /demo/*` | inject synthetic risk signals; only mounted when `DEMO_MODE=true` |
+
+Security behaviour worth knowing:
+
+- Tokens are tied to a `sessions` row and checked on every request, so
+  logout, step-up and lockout end a session immediately. Only token ids and
+  hashes are stored, never the tokens.
+- Failed logins lock the account for 1, 5, then 15 minutes
+  (`LOCKOUT_BACKOFF_MINUTES`), not permanently. Wrong passwords and unknown
+  usernames get the same response, so accounts can't be discovered.
+- `/auth/login`, `/auth/refresh` and `/enroll/` are rate-limited per IP.
+  Request bodies over 4 MB and non-JPEG frames are refused.
+- `X-Forwarded-For` is only trusted from `TRUSTED_PROXIES`.
 
 ## Frontend (`frontend/`)
 
@@ -76,29 +106,18 @@ npm run dev        # port 3000, proxies /enroll, /auth, /heartbeat, /admin to :8
   logs signal values at WARNING. Needs calibration against real captured
   frames before it can block anything.
 - **Head-turn liveness threshold is unresolved.** Last tuning pass
-  (`TURN_LEFT_THRESHOLD`/`TURN_RIGHT_THRESHOLD` in `constants.py` and
+  (`TURN_LEFT_THRESHOLD`/`TURN_RIGHT_THRESHOLD` in `app/cv/liveness.py` and
   mirrored in `LivenessCamera.jsx`) made it worse, not better — turn
   detection fires on minor drift. Needs live testing with logged EAR/turn
   offset values to pick real thresholds, not another blind guess.
   liveness.py / LivenessCamera.jsx.
-- **No automated test suite.** All QA so far (`copilot_QA`) was manual,
-  ad-hoc `python -c "..."` smoke checks — no `pytest` files exist despite
-  `pytest`/`pytest-asyncio` being in `requirements.txt`. Needs real
-  `tests/` covering enroll/login/heartbeat pipelines, JWT, RBAC, and risk
-  middleware, so regressions (like the PAD/lockout bug already hit once)
-  get caught before manual testing.
-- **`SECRET_KEY` is hardcoded in `constants.py`** and committed to git.
-  Needs to move to an environment variable before this goes anywhere near
-  a real deployment.
-- **No Alembic migrations** — schema changes currently mean deleting the
-  `.db` file. Fine for demo scope, a real blocker once there's data worth
-  keeping.
-- **`tmp_reset_user.py`** is a standalone manual unlock script, not an
-  admin API path — worth folding into `/admin` or deleting once the admin
-  UI can do it.
-- Enroll/login routers write `AuditLog` rows with `ip=None` (only
-  `AuditMiddleware` captures real client IP), so Gemma never sees IP
-  history for the auth events themselves — only for everything after.
+- **Tests cover auth, sessions, lockout and hardening, not the CV
+  pipeline.** The CV models are stubbed in `tests/`. Liveness, PAD and
+  matching need recorded clips and a calibration run (next phase).
+- **Liveness is still one frame chosen by the client.** The next phase moves
+  it to server-issued challenges verified over a short clip.
+- **The old `SECRET_KEY` is in git history.** It is no longer used anywhere,
+  but treat it as public: never reuse it.
 
 ### Frontend
 

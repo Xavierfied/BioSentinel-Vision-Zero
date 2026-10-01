@@ -30,6 +30,7 @@ from app.database import get_db
 from app.middleware.rbac import get_current_user
 from app.models import User
 from app.routers.enroll import _decode_image
+from app.security.uploads import read_jpeg_upload
 
 router = APIRouter(tags=["monitoring"])
 logger = logging.getLogger(__name__)
@@ -40,7 +41,7 @@ async def heartbeat(
     request: Request,
     image: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
 ):
     """Re-verify the caller's face mid-session and expose the similarity score.
 
@@ -51,7 +52,7 @@ async def heartbeat(
     """
     try:
         # STEP 1 — decode the uploaded frame into a BGR array (reuses enroll's).
-        image_bytes = await image.read()
+        image_bytes = await read_jpeg_upload(image)
         frame = _decode_image(image_bytes)
         if frame is None:
             raise HTTPException(
@@ -70,8 +71,8 @@ async def heartbeat(
                 "message": "No face detected in frame",
             }
 
-        # STEP 3 — extract the live embedding; a spoof/low-quality crop comes
-        # back as None and is likewise treated as a 0.0 similarity.
+        # STEP 3 — extract the live embedding; a failed extraction comes back
+        # as None and is likewise treated as a 0.0 similarity.
         live_embedding = extract_embedding(detection.face_crop)
         if live_embedding is None:
             request.state.face_similarity = 0.0
