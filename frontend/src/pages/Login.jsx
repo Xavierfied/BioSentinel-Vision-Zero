@@ -22,8 +22,7 @@ export default function Login() {
 
   const [submitting,   setSubmitting]   = useState(false)
   const [banner,       setBanner]       = useState({ msg: '', type: '' })
-  const [attemptsLeft, setAttemptsLeft] = useState(null)
-  const [locked,       setLocked]       = useState(false)
+  const [lockMessage,  setLockMessage]  = useState(null)
 
   // Key to remount LivenessCamera (force new challenge
   // after a failed attempt so user must re-verify)
@@ -98,18 +97,24 @@ export default function Login() {
         setTimeout(() => navigate('/dashboard'), 1200)
 
       } else if (res.status === 403) {
-        // Account locked
-        setLocked(true)
+        // Locked: either a timed lock after failed attempts or disabled by
+        // an admin / the risk engine. The server's message says which.
+        setLockMessage(data.detail || 'Account locked.')
         setBanner({ msg: '', type: '' })
+        setSubmitting(false)
+
+      } else if (res.status === 429) {
+        setBanner({
+          msg: 'Too many attempts from this device. Wait a minute and try again.',
+          type: 'error'
+        })
+        resetCamera()
+        setSubmitting(false)
 
       } else if (res.status === 401) {
-        // Wrong credential — parse attempts remaining
-        const detail = data.detail || ''
-        const match  = detail.match(/(\d+) attempt/)
-        if (match) {
-          setAttemptsLeft(parseInt(match[1]))
-        }
-        setBanner({ msg: detail, type: 'error' })
+        // The server deliberately gives one generic message for any wrong
+        // credential, so it cannot be used to discover accounts.
+        setBanner({ msg: data.detail || 'Invalid credentials', type: 'error' })
         // Force new liveness challenge on retry
         resetCamera()
         setSubmitting(false)
@@ -134,16 +139,20 @@ export default function Login() {
   }
 
   // Locked state — show full-page message
-  if (locked) return (
+  if (lockMessage) return (
     <div className="login-page">
       <div className="login-card">
         <div className="locked-box">
           <h2>🔒 Account Locked</h2>
-          <p>
-            Too many failed attempts. Your account has
-            been locked. Please contact an administrator
-            to unlock it.
-          </p>
+          <p>{lockMessage}</p>
+          {lockMessage.includes('temporarily') && (
+            <button
+              className="btn-primary"
+              onClick={() => { setLockMessage(null); resetCamera() }}
+            >
+              Try again
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -162,14 +171,6 @@ export default function Login() {
         {/* LEFT — credentials */}
         <div className="panel">
           <h2>Credentials</h2>
-
-          {attemptsLeft !== null && (
-            <div className="attempts-warning">
-              ⚠️ {attemptsLeft} attempt
-              {attemptsLeft !== 1 ? 's' : ''} remaining
-              before account lockout
-            </div>
-          )}
 
           <div className="form-group">
             <label>Username</label>

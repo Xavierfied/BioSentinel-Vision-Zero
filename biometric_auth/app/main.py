@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.config import settings
 from app.database import create_tables
 from app.middleware.audit import AuditMiddleware
 from app.middleware.risk import RiskMiddleware
@@ -13,7 +14,7 @@ from app.routers.enroll import router as enroll_router
 from app.routers.login import router as login_router
 from app.routers.heartbeat import router as heartbeat_router
 from app.routers.admin import router as admin_router
-from app.routers.demo import router as demo_router
+from app.security.uploads import BodySizeLimitMiddleware
 
 logging.basicConfig(
     level=logging.INFO,
@@ -24,9 +25,13 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("Starting up — creating database tables")
-    await create_tables()
-    logger.info("Database ready")
+    if settings.auto_create_tables:
+        logger.info("AUTO_CREATE_TABLES is on — creating tables with create_all()")
+        await create_tables()
+    else:
+        logger.info("Database schema is managed by Alembic (alembic upgrade head)")
+    if settings.demo_mode:
+        logger.warning("DEMO_MODE is on: /demo endpoints can inject fake risk signals")
     yield
     logger.info("Shutting down")
 
@@ -41,13 +46,10 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000",
-                   "http://127.0.0.1:3000",
-                   "http://localhost:8000",
-                   "http://127.0.0.1:8000"],
+    allow_origins=settings.cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 # FastAPI runs middleware in reverse registration order.
@@ -56,6 +58,9 @@ app.add_middleware(
 # So RiskMiddleware is registered first, AuditMiddleware second.
 app.add_middleware(RiskMiddleware)
 app.add_middleware(AuditMiddleware)
+# Registered last so it runs first: oversized bodies are refused before any
+# other middleware or the multipart parser touches them.
+app.add_middleware(BodySizeLimitMiddleware, max_bytes=settings.max_request_bytes)
 
 # Only mount if the directory exists — the frontend is built
 # in a later commit and is not present yet.
@@ -67,7 +72,11 @@ app.include_router(enroll_router)
 app.include_router(login_router)
 app.include_router(heartbeat_router)
 app.include_router(admin_router)
-app.include_router(demo_router)
+
+if settings.demo_mode:
+    from app.routers.demo import router as demo_router
+
+    app.include_router(demo_router)
 
 
 @app.get("/health", tags=["system"])

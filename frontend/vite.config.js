@@ -1,10 +1,12 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
-// bypass(req) returns the URL to serve locally (skipping the proxy) for any
-// non-POST request so React Router can handle SPA navigation to /enroll, etc.
+// bypass(req) returns the URL to serve locally (skipping the proxy) for page
+// navigations, so React Router can handle /enroll, /login, etc. API calls
+// (POSTs, and GETs like /auth/me that ask for JSON) still go to the backend.
 function apiOnly(req) {
-  if (req.method !== 'POST') return req.url
+  const wantsPage = (req.headers.accept || '').includes('text/html')
+  if (req.method === 'GET' && wantsPage) return req.url
 }
 
 export default defineConfig({

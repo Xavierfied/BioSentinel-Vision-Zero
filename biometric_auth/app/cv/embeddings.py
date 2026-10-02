@@ -15,6 +15,7 @@ import numpy as np
 from deepface import DeepFace
 
 from app.cv.detector import FaceDetection  # noqa: F401 - part of the module's declared interface
+from app.config import settings
 from constants import MATCH_THRESHOLD
 
 logger = logging.getLogger(__name__)
@@ -27,18 +28,22 @@ def extract_embedding(face_crop: np.ndarray) -> Optional[np.ndarray]:
 
     ``enforce_detection=False`` is intentional: the CV pipeline already
     confirmed a face exists, so re-running detection here would be
-    redundant. ``anti_spoofing=True`` means a presentation-attack crop
-    raises inside DeepFace, which we catch and treat as a failure.
+    redundant.
+
+    DeepFace's own anti-spoofing is controlled by DEEPFACE_ANTI_SPOOFING and
+    is OFF by default, because it rejected genuine users too often on a
+    normal webcam. With it off, nothing in this function detects spoofs;
+    presentation-attack defence lives in ``app.cv.pad`` and liveness.
 
     Returns the embedding as a float32 array, or ``None`` if DeepFace
-    raises for any reason (including spoof detection).
+    raises for any reason (including spoof detection when enabled).
     """
     try:
         result = DeepFace.represent(
             img_path=face_crop,
             model_name=EMBEDDING_MODEL,
             enforce_detection=False,
-            anti_spoofing=False,
+            anti_spoofing=settings.deepface_anti_spoofing,
         )
         embedding = result[0]["embedding"]
         return np.array(embedding, dtype=np.float32)

@@ -1,40 +1,55 @@
 import logging
-from typing import List
 
-from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from sqlalchemy import select
+from fastapi import Depends, HTTPException, Request, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth.jwt_service import ACCESS, decode_token, get_live_session
 from app.database import get_db
-from app.models import User
-from app.auth.jwt_service import decode_token
+from app.models import Session, User
 
 logger = logging.getLogger(__name__)
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
+
+_UNAUTHORIZED = HTTPException(
+    status_code=status.HTTP_401_UNAUTHORIZED,
+    detail="Invalid or expired token",
+    headers={"WWW-Authenticate": "Bearer"},
+)
+
+
+async def get_current_session(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: AsyncSession = Depends(get_db, scope="function"),
+) -> Session:
+    """Resolve the caller's live session from a Bearer access token.
+
+    Rejects tokens that are badly signed, expired, not access tokens, from a
+    revoked session, or superseded by a refresh.
+    """
+    if credentials is None:
+        raise _UNAUTHORIZED
+    payload = decode_token(credentials.credentials, expected_type=ACCESS)
+    if payload is None:
+        raise _UNAUTHORIZED
+    session = await get_live_session(db, payload)
+    if session is None:
+        raise _UNAUTHORIZED
+    request.state.session_id = session.id
+    return session
 
 
 async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: AsyncSession = Depends(get_db),
+    session: Session = Depends(get_current_session),
+    db: AsyncSession = Depends(get_db, scope="function"),
 ) -> User:
-    token = credentials.credentials
-    payload = decode_token(token)
-    if payload is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
-        )
-
-    user_id = int(payload["sub"])
-    result = await db.execute(select(User).where(User.id == user_id))
-    user = result.scalars().first()
-    if user is None or user.is_active is False:
+    user = await db.get(User, session.user_id)
+    if user is None or not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found or account is inactive",
         )
-
     return user
 
 

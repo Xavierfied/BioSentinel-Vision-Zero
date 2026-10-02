@@ -11,7 +11,7 @@ explicitly, so the injected signals persist regardless of the request lifecycle.
 """
 
 import logging
-from datetime import datetime, timedelta
+from app.timeutil import utcnow
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import delete, select
@@ -66,7 +66,7 @@ async def trigger_ip_shift(user_id: int):
 async def spam_requests(user_id: int):
     """Inject 20 rapid audit rows to spike the actions-per-minute signal."""
     async with AsyncSessionLocal() as db:
-        now = datetime.utcnow()
+        now = utcnow()
         for i in range(20):
             db.add(
                 AuditLog(

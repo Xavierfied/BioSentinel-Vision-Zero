@@ -13,20 +13,22 @@ take down a request that already succeeded.
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Callable, Optional
 
 from fastapi import Request, Response
 from fastapi.responses import JSONResponse
-from sqlalchemy import func, select, update
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
 
 from app.database import AsyncSessionLocal
-from app.middleware.audit import _get_client_ip
+from app.auth.jwt_service import revoke_all_sessions
 from app.models import AuditLog, Session, User
 from app.risk.engine import build_signal_dict, evaluate_risk
+from app.security.net import get_client_ip
+from app.timeutil import as_utc, utcnow
 from constants import RISK_SCORE_LOCKOUT_THRESHOLD, RISK_SCORE_STEPUP_THRESHOLD
 
 logger = logging.getLogger(__name__)
@@ -50,8 +52,12 @@ class RiskMiddleware(BaseHTTPMiddleware):
             # handler has done its work.
             response = await call_next(request)
 
-            # STEP 2 — only score the paths we care about.
+            # STEP 2 — only score the paths we care about, and only when the
+            # handler accepted the request (a revoked or invalid token gets a
+            # 401 from the route and must not be scored or acted on).
             if request.url.path not in RISK_CHECK_PATHS:
+                return response
+            if response.status_code != 200:
                 return response
 
             # STEP 3 — we can only score an authenticated caller. AuditMiddleware
@@ -121,7 +127,7 @@ async def _assemble_signals(
     session: AsyncSession = AsyncSessionLocal()
     try:
         # 1. Current client IP.
-        ip = _get_client_ip(request)
+        ip = get_client_ip(request)
 
         # 2. Did the IP change vs. the previous request? Look at the two most
         #    recent IP-bearing log rows: row[0] may be this very request, so we
@@ -138,7 +144,7 @@ async def _assemble_signals(
             ip_changed = True
 
         # 3. Failed login attempts since midnight (UTC).
-        today_start = datetime.utcnow().replace(
+        today_start = utcnow().replace(
             hour=0, minute=0, second=0, microsecond=0
         )
         failed_result = await session.execute(
@@ -151,7 +157,7 @@ async def _assemble_signals(
         failed_attempts_today = failed_result.scalar() or 0
 
         # 4. Request rate over the last 5 minutes, as actions per minute.
-        five_min_ago = datetime.utcnow() - timedelta(minutes=5)
+        five_min_ago = utcnow() - timedelta(minutes=5)
         actions_result = await session.execute(
             select(func.count(AuditLog.id)).where(
                 AuditLog.user_id == user_id,
@@ -171,7 +177,7 @@ async def _assemble_signals(
         latest_session = session_result.scalar_one_or_none()
         session_age_minutes = 0
         if latest_session is not None:
-            delta = datetime.utcnow() - latest_session.created_at.replace(tzinfo=None)
+            delta = utcnow() - as_utc(latest_session.created_at)
             session_age_minutes = int(delta.total_seconds() / 60)
 
         # 6. Hand the assembled signals to the engine's typed constructor.
@@ -179,7 +185,7 @@ async def _assemble_signals(
             face_similarity=face_similarity,
             ip_address=ip,
             ip_changed=ip_changed,
-            hour_of_day=datetime.utcnow().hour,
+            hour_of_day=utcnow().hour,
             failed_attempts_today=failed_attempts_today,
             privilege_requested="/admin" in request.url.path,
             session_age_minutes=session_age_minutes,
@@ -208,12 +214,7 @@ async def _handle_lockout(user_id: int) -> None:
         user = await session.get(User, user_id)
         if user is not None:
             user.is_active = False
-        await session.execute(
-            update(Session)
-            .where(Session.user_id == user_id)
-            .where(Session.is_revoked.is_(False))
-            .values(is_revoked=True)
-        )
+        await revoke_all_sessions(session, user_id, "risk_lockout")
         await session.commit()
         logger.warning("User %s locked out", user_id)
     except Exception:
@@ -227,12 +228,7 @@ async def _handle_stepup(user_id: int) -> None:
     """Revoke all active sessions, forcing the caller to re-authenticate."""
     session: AsyncSession = AsyncSessionLocal()
     try:
-        await session.execute(
-            update(Session)
-            .where(Session.user_id == user_id)
-            .where(Session.is_revoked.is_(False))
-            .values(is_revoked=True)
-        )
+        await revoke_all_sessions(session, user_id, "risk_stepup")
         await session.commit()
         logger.warning("Step-up triggered for user %s", user_id)
     except Exception:

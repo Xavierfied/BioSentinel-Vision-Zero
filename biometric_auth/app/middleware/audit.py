@@ -16,9 +16,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
 
-from app.auth.jwt_service import decode_token
+from app.auth.jwt_service import ACCESS, decode_token
 from app.database import AsyncSessionLocal
 from app.models import AuditLog
+from app.security.net import get_client_ip
 
 logger = logging.getLogger(__name__)
 
@@ -37,12 +38,13 @@ class AuditMiddleware(BaseHTTPMiddleware):
         try:
             # STEP 1 — attach the caller's identity to request.state.
             # Any non-Bearer header, missing token, or invalid token collapses
-            # to the same "anonymous" state (all fields None).
+            # to the same "anonymous" state (all fields None). This only labels
+            # the log row; route dependencies still check the session is live.
             auth_header = request.headers.get("authorization", "")
             payload: Optional[dict] = None
             if auth_header.lower().startswith("bearer "):
                 token = auth_header[7:]
-                payload = decode_token(token)
+                payload = decode_token(token, expected_type=ACCESS)
 
             if payload is not None:
                 request.state.user_id = int(payload.get("sub", 0))
@@ -65,7 +67,7 @@ class AuditMiddleware(BaseHTTPMiddleware):
                 await _write_audit_log(
                     user_id=request.state.user_id,
                     action=f"{request.method} {request.url.path}",
-                    ip_address=_get_client_ip(request),
+                    ip_address=get_client_ip(request),
                     risk_score=request.state.risk_score,
                     meta=json.dumps({"status_code": response.status_code}),
                 )
@@ -114,10 +116,5 @@ async def _write_audit_log(
 
 
 def _get_client_ip(request: Request) -> str:
-    """Best-effort client IP, honouring a proxy's X-Forwarded-For header."""
-    forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
-    if request.client:
-        return request.client.host
-    return "unknown"
+    """Kept for older imports; see ``app.security.net.get_client_ip``."""
+    return get_client_ip(request)

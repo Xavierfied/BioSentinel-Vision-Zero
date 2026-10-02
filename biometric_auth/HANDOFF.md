@@ -544,3 +544,48 @@ locked UI, attempts parsing, /dashboard redirect,
 no localStorage. Manual: happy path, wrong password
 counter, lockout, wrong face rejection, already-
 authenticated redirect.
+---
+
+### Phase 0 — security hardening (sessions, lockout, config, migrations, tests)
+**What was built:**
+- app/config.py: pydantic-settings; every setting from env / .env.
+  SECRET_KEY is required (min 32 chars) — the app refuses to start without
+  it. constants.py is now a thin shim over settings. .env.example added.
+- Sessions: tokens carry `sid` + `jti`; `sessions` stores the access jti and
+  a SHA-256 of the refresh token, never raw tokens. get_current_session
+  checks the row on every request (revoked / superseded / expired → 401).
+  New: POST /auth/refresh (rotation, reuse revokes the session),
+  POST /auth/logout, GET /auth/me.
+- Lockout (app/auth/lockout.py): failed factors lock the account for
+  1/5/15 min instead of disabling it. Password is checked first; wrong
+  password and unknown user return the same 401 (dummy bcrypt for timing).
+  Admin unblock clears both the timed lock and is_active.
+- app/security/: per-IP rate limits on login/refresh/enroll, 4 MB body cap
+  middleware, JPEG-only frames, X-Forwarded-For only from TRUSTED_PROXIES.
+- Timezone-aware UTC everywhere (app/timeutil.py).
+- /demo only mounted with DEMO_MODE=true. tmp_reset_user.py and copilot_QA
+  removed. Enroll validates fields and duplicate emails.
+- DeepFace anti-spoofing is a setting (DEEPFACE_ANTI_SPOOFING, default off:
+  it rejected genuine users on a normal webcam). Comments that claimed it
+  was on are fixed.
+- RiskMiddleware only scores heartbeats the route accepted (200), so a
+  revoked token can no longer trigger scoring or lockout.
+- Alembic (migrations/, 0001 baseline + 0002 phase 0), tested on SQLite and
+  PostgreSQL. scripts/sqlite_to_postgres.py + docker-compose.postgres.yml +
+  docs/POSTGRES.md for the later switch.
+- tests/: 30 pytest tests, CV libraries stubbed, ~5 s. CI workflow in
+  .github/workflows/backend-tests.yml.
+- Frontend: AuthContext logout revokes the server session; authFetch
+  refreshes once on 401. Login shows the server's lock message (timed vs
+  disabled) and handles 429. Vite proxy lets JSON GETs (/auth/me) through.
+
+**Bug found and fixed:**
+get_db committed only after the response was sent, so on SQLite the audit
+middleware's write hit the open transaction's lock and was silently dropped
+for every write request (successful logins never got their request audit
+row). get_db is now declared with `scope="function"`, which commits before
+the response. Regression test: test_request_audit_row_written_after_login.
+
+**Upgrading an existing database:**
+`alembic stamp 0001_baseline && alembic upgrade head`. Sessions are dropped
+(old tokens were signed with the public key anyway).
